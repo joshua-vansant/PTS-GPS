@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:html';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+// import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
-import 'package:geolocator/geolocator.dart';
+import 'package:geolocator/geolocator.dart' as geolocator;
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 
 void main() => runApp(MyApp());
@@ -30,8 +32,13 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final StreamController<LatLng> _streamController =
-      StreamController.broadcast();
+  final StreamController<LatLng> _streamController = StreamController.broadcast();
+  MapboxMap? mapboxMap;
+
+  _onMapCreated(MapboxMap mapboxMap){
+    this.mapboxMap = mapboxMap;
+    this.mapboxMap?.location;
+  }
 
   Future<void> fetchData() async {
     final response =
@@ -46,8 +53,6 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       throw Exception('Failed to load data');
     }
-
-
   }
 
   @override
@@ -57,7 +62,6 @@ class _MyHomePageState extends State<MyHomePage> {
     Timer.periodic(Duration(seconds: 1), (timer) {
       fetchData().catchError((e) => print(e));
     });
-    
   }
 
   @override
@@ -75,36 +79,44 @@ class _MyHomePageState extends State<MyHomePage> {
               future: _getCurrentLocation(),
               builder: (BuildContext context, AsyncSnapshot<LatLng> userSnapshot) {
                 final userCoords = userSnapshot.data;
-                return FlutterMap(
-                  options: MapOptions(
-                    center: issCoords,
-                    zoom: 17,
+
+              return MapWidget(
+                resourceOptions: ResourceOptions(
+                  accessToken: 'pk.eyJ1IjoianZhbnNhbnRwdHMiLCJhIjoiY2w1YnI3ejNhMGFhdzNpbXA5MWExY3FqdiJ9.SNsWghIteFZD7DTuI4_FmA'
                   ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      subdomains: ['a', 'b', 'c'],
-                    ),
-                    MarkerLayer(markers: [
-                      if (userCoords != null)
-                        Marker(
-                          point: userCoords,
-                          builder: (ctx) => Icon(
-                            Icons.person_pin_circle,
-                            color: Colors.blue,
-                          ),
-                        ),
-                      Marker(
-                        point: issCoords,
-                        builder: (ctx) => Icon(
-                          Icons.location_on,
-                          color: Colors.red,
-                        ),
-                      ),
-                    ]),
-                  ],
+                onMapCreated: _onMapCreated,
                 );
+
+                // return FlutterMap(
+                //   options: MapOptions(
+                //     center: issCoords,
+                //     zoom: 17,
+                //   ),
+                //   children: [
+                //     TileLayer(
+                //       urlTemplate:
+                //           'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                //       subdomains: ['a', 'b', 'c'],
+                //     ),
+                //     MarkerLayer(markers: [
+                //       if (userCoords != null)
+                //         Marker(
+                //           point: userCoords,
+                //           builder: (ctx) => Icon(
+                //             Icons.person_pin_circle,
+                //             color: Colors.blue,
+                //           ),
+                //         ),
+                //       Marker(
+                //         point: issCoords,
+                //         builder: (ctx) => Icon(
+                //           Icons.location_on,
+                //           color: Colors.red,
+                //         ),
+                //       ),
+                //     ]),
+                //   ],
+                // );
               },
             );
           } else if (snapshot.hasError) {
@@ -118,19 +130,19 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
  Future<void> askPermission() async{
-    LocationPermission permission = await Geolocator.requestPermission();
+    geolocator.LocationPermission permission = await geolocator.Geolocator.requestPermission();
   }
 
   Future<LatLng> _getCurrentLocation() async {
-    if((Geolocator.checkPermission() == 'always') || (Geolocator.checkPermission() == 'whileInUse')){
-        final Position position =
-            await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+    if((geolocator.Geolocator.checkPermission() == 'always') || (geolocator.Geolocator.checkPermission() == 'whileInUse')){
+        final geolocator.Position position =
+            await geolocator.Geolocator.getCurrentPosition(desiredAccuracy: geolocator.LocationAccuracy.high);
         return LatLng(position.latitude, position.longitude);
       } else {
-        Geolocator.requestPermission();
+        geolocator.Geolocator.requestPermission();
       }
-      final Position position =
-            await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final geolocator.Position position =
+            await geolocator.Geolocator.getCurrentPosition(desiredAccuracy: geolocator.LocationAccuracy.high);
         return LatLng(position.latitude, position.longitude);
     }
 
