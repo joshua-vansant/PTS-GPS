@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+// import 'dart:js_interop';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,58 +38,43 @@ class _MyHomePageState extends State<MyHomePage> {
   PointAnnotation? pointAnnotation;
   PointAnnotationManager? pointAnnotationManager;
   int styleIndex = 1;
+  var options = <PointAnnotationOptions>[];
 
   _onMapCreated(MapboxMap mapboxMap) {
     this.mapboxMap = mapboxMap;
-    mapboxMap.annotations.createPointAnnotationManager().then((value) async {
-      pointAnnotationManager = value;
-      final ByteData bytes =
-          await rootBundle.load('assets/usericon.png');
-      final Uint8List list = bytes.buffer.asUint8List();
-      createOneAnnotation(list);
-      var options = <PointAnnotationOptions>[];
-      for (var i = 0; i < 5; i++) {
-        options.add(PointAnnotationOptions(
-            geometry: createRandomPoint().toJson(), image: list));
-      }
-      pointAnnotationManager?.createMulti(options);
-
-      var carOptions = <PointAnnotationOptions>[];
-      for (var i = 0; i < 20; i++) {
-        carOptions.add(PointAnnotationOptions(
-            geometry: createRandomPoint().toJson(), iconImage: "car-15"));
-      }
-      pointAnnotationManager?.createMulti(carOptions);
-      // pointAnnotationManager
-      //     ?.addOnPointAnnotationClickListener(AnnotationClickListener());
-    });
-  }
-  Point createRandomPoint() {
-    return Point(coordinates: createRandomPosition());
   }
 
-  Position createRandomPosition() {
-    var random = Random();
-    return Position(random.nextDouble() * -360.0 + 180.0,
-        random.nextDouble() * -180.0 + 90.0);
-  }
-  void createOneAnnotation(Uint8List list) {
-    pointAnnotationManager
-        ?.create(PointAnnotationOptions(
-            geometry: Point(
-                coordinates: Position(
-              0.381457,
-              6.687337,
-            )).toJson(),
-            textField: "custom-icon",
-            textOffset: [0.0, -2.0],
-            textColor: Colors.red.value,
-            iconSize: 1.3,
-            iconOffset: [0.0, -5.0],
-            symbolSortKey: 10,
-            image: list))
-        .then((value) => pointAnnotation = value);
-  }
+
+  // Point createRandomPoint() {
+  //   return Point(coordinates: createRandomPosition());
+  // }
+
+  // Position createRandomPosition() {
+  //   var random = Random();
+  //   return Position(random.nextDouble() * -360.0 + 180.0,
+  //       random.nextDouble() * -180.0 + 90.0);
+  // }
+
+
+  // void createOneAnnotation(Uint8List list) {
+  //   pointAnnotationManager
+  //       ?.create(PointAnnotationOptions(
+  //           geometry: Point(
+  //               coordinates: Position(
+  //             0.381457,
+  //             6.687337,
+  //           )).toJson(),
+  //           textField: "custom-icon",
+  //           textOffset: [0.0, -2.0],
+  //           textColor: Colors.red.value,
+  //           iconSize: 1.3,
+  //           iconOffset: [0.0, -5.0],
+  //           symbolSortKey: 10,
+  //           image: list
+  //           )
+  //           )
+  //       .then((value) => pointAnnotation = value);
+  // }
 
 
 
@@ -125,6 +111,23 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  //   Future<Point> fetchDataPoint() async {
+  //   final response =
+  //       await http.get(Uri.parse('https://api.init.st/data/v1/events/latest?accessKey=ist_rg6P7BFsuN8Ekew6hKsE5t9QoMEp2KZN&bucketKey=jmvs_pts_tracker'));
+  //       print(response.statusCode);
+  //   if (response.statusCode == 200) {
+  //     final jsonResponse = json.decode(response.body);
+  //     final lat = double.parse(jsonResponse['tracker1']['value'].toString().split(',')[0]);
+  //     final lng = double.parse(jsonResponse['tracker1']['value'].toString().split(',')[1]);
+  //     final LatLng? coords = LatLng(lat, lng);
+  //     _streamController.add(coords!);
+  //     final Point point = Point(coordinates: Position(lng, lat));
+  //     return point;
+  //   } else {
+  //     throw Exception('Failed to load data');
+  //   }
+  // }
+
   @override
   void initState() {
     super.initState();
@@ -145,16 +148,33 @@ class _MyHomePageState extends State<MyHomePage> {
         builder: (BuildContext context, AsyncSnapshot<LatLng> snapshot) {
           if (snapshot.hasData) {
             final issCoords = snapshot.data!;
+            print(issCoords);
             return FutureBuilder<LatLng>(
               future: _getCurrentLocation(),
               builder: (BuildContext context, AsyncSnapshot<LatLng> userSnapshot) {
                 final userCoords = userSnapshot.data;
-
+                print(userCoords);
               return MapWidget(
+                key: ValueKey("mapWidget"),
                 resourceOptions: ResourceOptions(
-                  accessToken: 'pk.eyJ1IjoianZhbnNhbnRwdHMiLCJhIjoiY2w1YnI3ejNhMGFhdzNpbXA5MWExY3FqdiJ9.SNsWghIteFZD7DTuI4_FmA'
+                  accessToken: 'pk.eyJ1IjoianZhbnNhbnRwdHMiLCJhIjoiY2w1YnI3ejNhMGFhdzNpbXA5MWExY3FqdiJ9.SNsWghIteFZD7DTuI4_FmA',
+                  ),cameraOptions: CameraOptions(
+                    center: issCoords.toJson(),
+                    zoom: 13.5,
                   ),
                 onMapCreated: _onMapCreated,
+                onMapLoadedListener: (mapLoadedEventData) => {
+                  mapboxMap?.annotations.createPointAnnotationManager().then((pointAnnotationManager) async {
+                    final ByteData bytes = await rootBundle.load('assets/usericon.png');
+                    final Uint8List list = bytes.buffer.asUint8List();
+                    options = <PointAnnotationOptions>[];
+                    options.add(PointAnnotationOptions(geometry: Point(coordinates: Position(userCoords!.latitude, userCoords.longitude)).toJson(),image: list, iconSize: 0.1));
+                    // options.add(PointAnnotationOptions(geometry: Point(coordinates: Position(38, -104, 0)).toJson(), image: list,iconSize:0.1));
+                    options.add(PointAnnotationOptions(geometry: issCoords.toJson(), image: list, iconSize: 0.2));
+                    pointAnnotationManager.createMulti(options);
+                  }
+                  )
+                },
                 );
 
                 // return FlutterMap(
@@ -200,16 +220,17 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
  Future<void> askPermission() async{
-    geolocator.LocationPermission permission = await geolocator.Geolocator.requestPermission();
+    await geolocator.Geolocator.requestPermission();
   }
 
   Future<LatLng> _getCurrentLocation() async {
+    // askPermission();
     if((geolocator.Geolocator.checkPermission() == 'always') || (geolocator.Geolocator.checkPermission() == 'whileInUse')){
         final geolocator.Position position =
             await geolocator.Geolocator.getCurrentPosition(desiredAccuracy: geolocator.LocationAccuracy.high);
         return LatLng(position.latitude, position.longitude);
       } else {
-        geolocator.Geolocator.requestPermission();
+        askPermission();
       }
       final geolocator.Position position =
             await geolocator.Geolocator.getCurrentPosition(desiredAccuracy: geolocator.LocationAccuracy.high);
