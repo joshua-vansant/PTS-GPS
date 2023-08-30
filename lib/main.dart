@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:html';
+import 'dart:math';
 import 'package:flutter/material.dart';
-// import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter/services.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart' as geolocator;
@@ -34,11 +34,81 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   final StreamController<LatLng> _streamController = StreamController.broadcast();
   MapboxMap? mapboxMap;
+  PointAnnotation? pointAnnotation;
+  PointAnnotationManager? pointAnnotationManager;
+  int styleIndex = 1;
 
-  _onMapCreated(MapboxMap mapboxMap){
+  _onMapCreated(MapboxMap mapboxMap) {
     this.mapboxMap = mapboxMap;
-    this.mapboxMap?.location;
+    mapboxMap.annotations.createPointAnnotationManager().then((value) async {
+      pointAnnotationManager = value;
+      final ByteData bytes =
+          await rootBundle.load('assets/usericon.png');
+      final Uint8List list = bytes.buffer.asUint8List();
+      createOneAnnotation(list);
+      var options = <PointAnnotationOptions>[];
+      for (var i = 0; i < 5; i++) {
+        options.add(PointAnnotationOptions(
+            geometry: createRandomPoint().toJson(), image: list));
+      }
+      pointAnnotationManager?.createMulti(options);
+
+      var carOptions = <PointAnnotationOptions>[];
+      for (var i = 0; i < 20; i++) {
+        carOptions.add(PointAnnotationOptions(
+            geometry: createRandomPoint().toJson(), iconImage: "car-15"));
+      }
+      pointAnnotationManager?.createMulti(carOptions);
+      // pointAnnotationManager
+      //     ?.addOnPointAnnotationClickListener(AnnotationClickListener());
+    });
   }
+  Point createRandomPoint() {
+    return Point(coordinates: createRandomPosition());
+  }
+
+  Position createRandomPosition() {
+    var random = Random();
+    return Position(random.nextDouble() * -360.0 + 180.0,
+        random.nextDouble() * -180.0 + 90.0);
+  }
+  void createOneAnnotation(Uint8List list) {
+    pointAnnotationManager
+        ?.create(PointAnnotationOptions(
+            geometry: Point(
+                coordinates: Position(
+              0.381457,
+              6.687337,
+            )).toJson(),
+            textField: "custom-icon",
+            textOffset: [0.0, -2.0],
+            textColor: Colors.red.value,
+            iconSize: 1.3,
+            iconOffset: [0.0, -5.0],
+            symbolSortKey: 10,
+            image: list))
+        .then((value) => pointAnnotation = value);
+  }
+
+
+
+  // _createAnnotations(){
+  //   mapboxMap!.annotations.createPointAnnotationManager().then((value) async {
+  //     pointAnnotationManager = value;
+  //     final ByteData bytes = await rootBundle.load('images/marker1.png');
+  //     final Uint8List list = bytes.buffer.asUint8List();
+  //     createOneAnnotation(list);
+  //   });
+  // }
+
+  // void createOneAnnotation(Uint8List list) {
+  //   pointAnnotationManager
+  //     ?.create(
+  //       PointAnnotationOptions(
+  //         geometry: Point(coordinates: )
+  //       )
+  //     )
+  // }
 
   Future<void> fetchData() async {
     final response =
