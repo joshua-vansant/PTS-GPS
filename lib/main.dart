@@ -38,17 +38,20 @@ class _MapScreenState extends State<MapScreen> {
 
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(response.body);
-      final lat = double.parse(jsonResponse['tracker1']['value'].toString().split(',')[0]);
-      final lng = double.parse(jsonResponse['tracker1']['value'].toString().split(',')[1]);
+      final lng = double.parse(jsonResponse['tracker1']['value'].toString().split(',')[0]);
+      final lat = double.parse(jsonResponse['tracker1']['value'].toString().split(',')[1]);
       final coords = Point(coordinates: Position(lat, lng));
-      setState(() {
-        t1Coords = coords;
-        log('coords set in fetchData $t1Coords');
-      });
-      // t1Coords = coords;
+      // setState(() {
+      //   t1Coords = coords;
+      //   log('coords set in fetchData $t1Coords');
+      // });
+      t1Coords = coords;
+      log('coords set in fetchData ${t1Coords!.toJson()}');
       // log('adding coords to stream ${coords}');
       _iotStream.add(coords);
       _createMarker();
+      
+      
       // log('coords added to stream ${coords}');
       // return coords;
     } else {
@@ -69,18 +72,40 @@ class _MapScreenState extends State<MapScreen> {
     final ByteData bytes = await rootBundle.load('assets/userLocation.png');
     final Uint8List list = bytes.buffer.asUint8List();
     // pointAnnotationManager.update(annotation)
+    if (pointAnnotation == null) {
     pointAnnotationManager?.create(
       PointAnnotationOptions(
         geometry: t1Coords!.toJson(),
         iconSize: .5,
         symbolSortKey: 10,
         image: list)).then((value) => pointAnnotation = value);
+  } else {
+    log('trying to update to ${t1Coords!.toJson()}');
+    // pointAnnotation = PointAnnotation(id: 't1', geometry: t1Coords!.toJson(), image: list, symbolSortKey: 10);
+    // pointAnnotationManager?.update(pointAnnotation as PointAnnotation);
+    
+
+    if (pointAnnotation != null) {
+          var point = Point.fromJson((pointAnnotation!.geometry)!.cast());
+          var newPoint = t1Coords!.toJson();
+          // Point(
+          //     coordinates: Position(
+          //         point.coordinates.lng + 1.0, point.coordinates.lat + 1.0));
+          pointAnnotation?.geometry = newPoint;
+          pointAnnotationManager?.update(pointAnnotation!);
+        }
+      
+    
+  }
   }
 
   _onMapCreated(MapboxMap mapboxMap){
     this.mapboxMap = mapboxMap;
     mapboxMap.annotations.createPointAnnotationManager().then((value) async {
       pointAnnotationManager = value;
+      // _createMarker();
+    });
+    setState(() {
       _createMarker();
     });
   }
@@ -111,13 +136,12 @@ class _MapScreenState extends State<MapScreen> {
               builder: (BuildContext context, AsyncSnapshot<Point> snapshot) { 
               if(snapshot.connectionState == ConnectionState.waiting){
                 log('waiting');
-                // fetchData();
                 return Center(child: CircularProgressIndicator());
               } else if (snapshot.hasError) {
                 return Center(child: Text('Error: ${snapshot.error}'));
               } else if (snapshot.hasData) {
                 t1Coords = snapshot.data;
-                log('updated coords! ${t1Coords!.toJson().toString()}');
+                // log('updated coords! ${t1Coords!.toJson().toString()}');
                 return MapWidget(
                   resourceOptions: ResourceOptions(
                       accessToken: 'pk.eyJ1IjoianZhbnNhbnRwdHMiLCJhIjoiY2w1YnI3ejNhMGFhdzNpbXA5MWExY3FqdiJ9.SNsWghIteFZD7DTuI4_FmA',
@@ -125,7 +149,7 @@ class _MapScreenState extends State<MapScreen> {
                   key: ValueKey("mapWidget"),
                   cameraOptions: CameraOptions(
                     center: t1Coords!.toJson(),
-                    zoom: 10
+                    zoom: 5
                   ),
                   onMapCreated: _onMapCreated,
                   
