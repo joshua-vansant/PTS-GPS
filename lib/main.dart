@@ -63,17 +63,11 @@ class _MapScreenState extends State<MapScreen> {
     if (permission == geo.LocationPermission.denied) {
       permission = await geo.Geolocator.requestPermission();
       if (permission == geo.LocationPermission.denied) {
-          // Permissions are denied, next time you could try
-          // requesting permissions again (this is also where
-          // Android's shouldShowRequestPermissionRationale
-          // returned true. According to Android guidelines
-          // your App should show an explanatory UI now.
           return Future.error('Location permissions are denied');
         }
     }
 
     if (permission == geo.LocationPermission.deniedForever) {
-    // Permissions are denied forever, handle appropriately.
     return Future.error(
         'Location permissions are permanently denied, we cannot request permissions.');
     }else{return Future.error('A problem occurred.');}
@@ -92,15 +86,15 @@ class _MapScreenState extends State<MapScreen> {
       final coords = Point(coordinates: Position(lat, lng));
       t1Coords = coords;
       _iotStream.add(coords);
-      _createMarker();
-      getUserLocation();
+      _createT1Marker();
+      
     } else {
       throw Exception('Failed to load data');
     }
   }
 
 
-  Future<void> _createMarker() async {
+  Future<void> _createT1Marker() async {
     final ByteData bytes = await rootBundle.load('assets/userLocation.png');
     final Uint8List list = bytes.buffer.asUint8List();
     if (tracker1 == null) {
@@ -127,13 +121,14 @@ class _MapScreenState extends State<MapScreen> {
       pointAnnotationManager = value;
     });
     setState(() {
-      _createMarker();
+      _createT1Marker();
     });
   }
 
   @override
   void initState() {
     super.initState();
+    getUserLocation();
     Timer.periodic(Duration(seconds: 1), (timer) {
       fetchData();
     });
