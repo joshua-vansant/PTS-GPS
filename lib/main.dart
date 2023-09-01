@@ -41,9 +41,14 @@ class _MapScreenState extends State<MapScreen> {
       final lat = double.parse(jsonResponse['tracker1']['value'].toString().split(',')[0]);
       final lng = double.parse(jsonResponse['tracker1']['value'].toString().split(',')[1]);
       final coords = Point(coordinates: Position(lat, lng));
-      t1Coords = coords;
+      setState(() {
+        t1Coords = coords;
+        log('coords set in fetchData $t1Coords');
+      });
+      // t1Coords = coords;
       // log('adding coords to stream ${coords}');
       _iotStream.add(coords);
+      _createMarker();
       // log('coords added to stream ${coords}');
       // return coords;
     } else {
@@ -51,10 +56,19 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  // Future<void> _updateMarker() async {
+  //   final ByteData bytes = await rootBundle.load('assets/userLocation.png');
+  //   final Uint8List list = bytes.buffer.asUint8List();
+  //   // pointAnnotationManager.update(annotation)
+  //   pointAnnotationManager!.update(pointAnnotation: pointAnnotation);
+  // }
+
+  // }
+
   Future<void> _createMarker() async {
     final ByteData bytes = await rootBundle.load('assets/userLocation.png');
     final Uint8List list = bytes.buffer.asUint8List();
-
+    // pointAnnotationManager.update(annotation)
     pointAnnotationManager?.create(
       PointAnnotationOptions(
         geometry: t1Coords!.toJson(),
