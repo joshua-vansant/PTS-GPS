@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
-// import 'package:latlong2/latlong.dart';
+import 'package:latlong2/latlong.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'dart:developer';
+import 'package:geolocator/geolocator.dart' as geo;
 
 void main() => runApp(MyApp());
 
@@ -28,8 +29,56 @@ class _MapScreenState extends State<MapScreen> {
   StreamController<Point> _iotStream = StreamController.broadcast();
   MapboxMap? mapboxMap;
   PointAnnotationManager? pointAnnotationManager;
-  PointAnnotation? pointAnnotation;
+  PointAnnotation? tracker1;
   Point? t1Coords;
+  PointAnnotation? userLocation;
+  Point? userCoords;
+
+
+  // _addUserPoint() async {
+  //   log('userCoords: ${userCoords}');
+  //   final ByteData bytes = await rootBundle.load('assets/userLocation.png');
+  //   final Uint8List list = bytes.buffer.asUint8List();
+  //   if (userLocation == null) {
+  //     log('user location is null');
+  //   pointAnnotationManager?.create(
+  //     PointAnnotationOptions(
+  //       geometry: userCoords!.toJson(),
+  //       iconSize: .5,
+  //       symbolSortKey: 10,
+  //       image: list)).then((value) => userLocation = value);
+  // } else {
+  //   log('trying to update USER to ${userCoords!.toJson()}');
+  //   if (userLocation != null) {
+  //         var point = Point.fromJson((userLocation!.geometry)!.cast());
+  //         var newPoint = userCoords!.toJson();
+  //         userLocation?.geometry = newPoint;
+  //         pointAnnotationManager?.update(userLocation!);
+  //       }
+  //     } 
+  // }
+  
+  Future<Position> getUserLocation() async {
+    var permission = await geo.Geolocator.checkPermission();
+    if (permission == geo.LocationPermission.denied) {
+      permission = await geo.Geolocator.requestPermission();
+      if (permission == geo.LocationPermission.denied) {
+          // Permissions are denied, next time you could try
+          // requesting permissions again (this is also where
+          // Android's shouldShowRequestPermissionRationale
+          // returned true. According to Android guidelines
+          // your App should show an explanatory UI now.
+          return Future.error('Location permissions are denied');
+        }
+    }
+
+    if (permission == geo.LocationPermission.deniedForever) {
+    // Permissions are denied forever, handle appropriately.
+    return Future.error(
+        'Location permissions are permanently denied, we cannot request permissions.');
+    }else{return Future.error('A problem occurred.');}
+
+  } 
 
   Future<void> fetchData() async {
     final response = await http.get(
@@ -41,69 +90,41 @@ class _MapScreenState extends State<MapScreen> {
       final lng = double.parse(jsonResponse['tracker1']['value'].toString().split(',')[0]);
       final lat = double.parse(jsonResponse['tracker1']['value'].toString().split(',')[1]);
       final coords = Point(coordinates: Position(lat, lng));
-      // setState(() {
-      //   t1Coords = coords;
-      //   log('coords set in fetchData $t1Coords');
-      // });
       t1Coords = coords;
-      log('coords set in fetchData ${t1Coords!.toJson()}');
-      // log('adding coords to stream ${coords}');
       _iotStream.add(coords);
       _createMarker();
-      
-      
-      // log('coords added to stream ${coords}');
-      // return coords;
+      getUserLocation();
     } else {
       throw Exception('Failed to load data');
     }
   }
 
-  // Future<void> _updateMarker() async {
-  //   final ByteData bytes = await rootBundle.load('assets/userLocation.png');
-  //   final Uint8List list = bytes.buffer.asUint8List();
-  //   // pointAnnotationManager.update(annotation)
-  //   pointAnnotationManager!.update(pointAnnotation: pointAnnotation);
-  // }
-
-  // }
 
   Future<void> _createMarker() async {
     final ByteData bytes = await rootBundle.load('assets/userLocation.png');
     final Uint8List list = bytes.buffer.asUint8List();
-    // pointAnnotationManager.update(annotation)
-    if (pointAnnotation == null) {
+    if (tracker1 == null) {
     pointAnnotationManager?.create(
       PointAnnotationOptions(
         geometry: t1Coords!.toJson(),
         iconSize: .5,
         symbolSortKey: 10,
-        image: list)).then((value) => pointAnnotation = value);
-  } else {
-    log('trying to update to ${t1Coords!.toJson()}');
-    // pointAnnotation = PointAnnotation(id: 't1', geometry: t1Coords!.toJson(), image: list, symbolSortKey: 10);
-    // pointAnnotationManager?.update(pointAnnotation as PointAnnotation);
-    
-
-    if (pointAnnotation != null) {
-          var point = Point.fromJson((pointAnnotation!.geometry)!.cast());
+        image: list)).then((value) => tracker1 = value);
+       } else {
+          var point = Point.fromJson((tracker1!.geometry)!.cast());
           var newPoint = t1Coords!.toJson();
-          // Point(
-          //     coordinates: Position(
-          //         point.coordinates.lng + 1.0, point.coordinates.lat + 1.0));
-          pointAnnotation?.geometry = newPoint;
-          pointAnnotationManager?.update(pointAnnotation!);
-        }
-      
-    
-  }
-  }
+          tracker1?.geometry = newPoint;
+          pointAnnotationManager?.update(tracker1!);
+          }
+       getUserLocation();
+    }
 
   _onMapCreated(MapboxMap mapboxMap){
     this.mapboxMap = mapboxMap;
+    this.mapboxMap!.location
+        .updateSettings(LocationComponentSettings(enabled: true)); // show current position
     mapboxMap.annotations.createPointAnnotationManager().then((value) async {
       pointAnnotationManager = value;
-      // _createMarker();
     });
     setState(() {
       _createMarker();
@@ -141,7 +162,6 @@ class _MapScreenState extends State<MapScreen> {
                 return Center(child: Text('Error: ${snapshot.error}'));
               } else if (snapshot.hasData) {
                 t1Coords = snapshot.data;
-                // log('updated coords! ${t1Coords!.toJson().toString()}');
                 return MapWidget(
                   resourceOptions: ResourceOptions(
                       accessToken: 'pk.eyJ1IjoianZhbnNhbnRwdHMiLCJhIjoiY2w1YnI3ejNhMGFhdzNpbXA5MWExY3FqdiJ9.SNsWghIteFZD7DTuI4_FmA',
@@ -149,12 +169,11 @@ class _MapScreenState extends State<MapScreen> {
                   key: ValueKey("mapWidget"),
                   cameraOptions: CameraOptions(
                     center: t1Coords!.toJson(),
-                    zoom: 5
+                    zoom: 11
                   ),
                   onMapCreated: _onMapCreated,
                   
                 );
-                
                 } else {
                     log('else block - stream');
                     return Center(child: Text('No data available'));
