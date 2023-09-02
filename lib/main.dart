@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'dart:developer';
 import 'package:geolocator/geolocator.dart' as geo;
+import 'package:google_directions_api/google_directions_api.dart';
 
 void main() => runApp(MyApp());
 
@@ -34,86 +35,87 @@ class _MapScreenState extends State<MapScreen> {
   PointAnnotation? userLocation;
   Point? userCoords;
 
-
-  // _addUserPoint() async {
-  //   log('userCoords: ${userCoords}');
-  //   final ByteData bytes = await rootBundle.load('assets/userLocation.png');
-  //   final Uint8List list = bytes.buffer.asUint8List();
-  //   if (userLocation == null) {
-  //     log('user location is null');
-  //   pointAnnotationManager?.create(
-  //     PointAnnotationOptions(
-  //       geometry: userCoords!.toJson(),
-  //       iconSize: .5,
-  //       symbolSortKey: 10,
-  //       image: list)).then((value) => userLocation = value);
-  // } else {
-  //   log('trying to update USER to ${userCoords!.toJson()}');
-  //   if (userLocation != null) {
-  //         var point = Point.fromJson((userLocation!.geometry)!.cast());
-  //         var newPoint = userCoords!.toJson();
-  //         userLocation?.geometry = newPoint;
-  //         pointAnnotationManager?.update(userLocation!);
-  //       }
-  //     } 
-  // }
-  
   Future<Position> getUserLocation() async {
     var permission = await geo.Geolocator.checkPermission();
     if (permission == geo.LocationPermission.denied) {
       permission = await geo.Geolocator.requestPermission();
       if (permission == geo.LocationPermission.denied) {
-          return Future.error('Location permissions are denied');
-        }
+        return Future.error('Location permissions are denied');
+      }
     }
 
     if (permission == geo.LocationPermission.deniedForever) {
-    return Future.error(
-        'Location permissions are permanently denied, we cannot request permissions.');
-    }else{return Future.error('A problem occurred.');}
-
-  } 
+      return Future.error(
+          'Location permissions are permanently denied, we cannot request permissions.');
+    } else {
+      return Future.error('A problem occurred.');
+    }
+  }
 
   Future<void> fetchData() async {
     final response = await http.get(
-      Uri.parse('https://api.init.st/data/v1/events/latest?accessKey=ist_rg6P7BFsuN8Ekew6hKsE5t9QoMEp2KZN&bucketKey=jmvs_pts_tracker')
-      );
+        Uri.parse(
+            'https://api.init.st/data/v1/events/latest?accessKey=ist_rg6P7BFsuN8Ekew6hKsE5t9QoMEp2KZN&bucketKey=jmvs_pts_tracker'));
 
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(response.body);
-      final lng = double.parse(jsonResponse['tracker1']['value'].toString().split(',')[0]);
-      final lat = double.parse(jsonResponse['tracker1']['value'].toString().split(',')[1]);
+      final lng = double.parse(
+          jsonResponse['tracker1']['value'].toString().split(',')[0]);
+      final lat = double.parse(
+          jsonResponse['tracker1']['value'].toString().split(',')[1]);
       final coords = Point(coordinates: Position(lat, lng));
       t1Coords = coords;
       _iotStream.add(coords);
       _createT1Marker();
+
+      // Calculate ETA
+      final origin = 'Denver';
+      final destination = 'San Francisco';
+      DirectionsService.init('AIzaSyCCyfB2dfaTATspTTMCMf5d1tedRYXAgZ0');
+      final directionsService = DirectionsService();
       
+      final request = DirectionsRequest(
+        origin: origin,
+        destination: destination,
+        travelMode: TravelMode.driving,
+      );
+
+      directionsService.route(request,
+          (DirectionsResult response, DirectionsStatus? status) {
+        if (status == DirectionsStatus.ok) {
+          final route = response.routes!.first;
+          final duration = route.legs!.first.duration;
+          print('ETA: ${duration!.value.toString()} minutes');
+        } else {
+          print('Error: $status');
+        }
+      });
     } else {
       throw Exception('Failed to load data');
     }
   }
 
-
   Future<void> _createT1Marker() async {
     final ByteData bytes = await rootBundle.load('assets/userLocation.png');
     final Uint8List list = bytes.buffer.asUint8List();
     if (tracker1 == null) {
-    pointAnnotationManager?.create(
-      PointAnnotationOptions(
-        geometry: t1Coords!.toJson(),
-        iconSize: .5,
-        symbolSortKey: 10,
-        image: list)).then((value) => tracker1 = value);
-       } else {
-          var point = Point.fromJson((tracker1!.geometry)!.cast());
-          var newPoint = t1Coords!.toJson();
-          tracker1?.geometry = newPoint;
-          pointAnnotationManager?.update(tracker1!);
-          }
-       getUserLocation();
+      pointAnnotationManager?.create(
+          PointAnnotationOptions(
+              geometry: t1Coords!.toJson(),
+              iconSize: .5,
+              symbolSortKey: 10,
+              image: list))
+          .then((value) => tracker1 = value);
+    } else {
+      var point = Point.fromJson((tracker1!.geometry)!.cast());
+      var newPoint = t1Coords!.toJson();
+      tracker1?.geometry = newPoint;
+      pointAnnotationManager?.update(tracker1!);
     }
+    getUserLocation();
+  }
 
-  _onMapCreated(MapboxMap mapboxMap){
+  _onMapCreated(MapboxMap mapboxMap) {
     this.mapboxMap = mapboxMap;
     this.mapboxMap!.location
         .updateSettings(LocationComponentSettings(enabled: true)); // show current position
@@ -143,14 +145,14 @@ class _MapScreenState extends State<MapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Map Screen'),
-      ),
-      body: StreamBuilder<Point>(
-              stream: _iotStream.stream,
-              initialData: t1Coords,
-              builder: (BuildContext context, AsyncSnapshot<Point> snapshot) { 
-              if(snapshot.connectionState == ConnectionState.waiting){
+        appBar: AppBar(
+          title: Text('Map Screen'),
+        ),
+        body: StreamBuilder<Point>(
+            stream: _iotStream.stream,
+            initialData: t1Coords,
+            builder: (BuildContext context, AsyncSnapshot<Point> snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
                 log('waiting');
                 return Center(child: CircularProgressIndicator());
               } else if (snapshot.hasError) {
@@ -159,23 +161,18 @@ class _MapScreenState extends State<MapScreen> {
                 t1Coords = snapshot.data;
                 return MapWidget(
                   resourceOptions: ResourceOptions(
-                      accessToken: 'pk.eyJ1IjoianZhbnNhbnRwdHMiLCJhIjoiY2w1YnI3ejNhMGFhdzNpbXA5MWExY3FqdiJ9.SNsWghIteFZD7DTuI4_FmA',
-                      ),
+                    accessToken:
+                        'pk.eyJ1IjoianZhbnNhbnRwdHMiLCJhIjoiY2w1YnI3ejNhMGFhdzNpbXA5MWExY3FqdiJ9.SNsWghIteFZD7DTuI4_FmA',
+                  ),
                   key: ValueKey("mapWidget"),
                   cameraOptions: CameraOptions(
-                    center: t1Coords!.toJson(),
-                    zoom: 11
-                  ),
+                      center: t1Coords!.toJson(), zoom: 11),
                   onMapCreated: _onMapCreated,
-                  
                 );
-                } else {
-                    log('else block - stream');
-                    return Center(child: Text('No data available'));
-             }
-             })
-        );
+              } else {
+                log('else block - stream');
+                return Center(child: Text('No data available'));
+              }
+            }));
   }
 }
-
-
