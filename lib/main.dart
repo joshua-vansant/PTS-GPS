@@ -8,8 +8,14 @@ import 'package:http/http.dart' as http;
 import 'dart:developer';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:google_directions_api/google_directions_api.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-void main() => runApp(MyApp());
+
+// void main() async => runApp(MyApp());
+void main() async {
+  await dotenv.load(fileName: '.env');
+  runApp(MyApp());
+}
 
 class MyApp extends StatelessWidget {
   @override
@@ -34,6 +40,7 @@ class _MapScreenState extends State<MapScreen> {
   Point? t1Coords;
   PointAnnotation? userLocation;
   Point? userCoords;
+  // String directionsKey = dotenv.env('DIRECTIONS_API_KEY', 'MAPBOX_MAPS_KEY').toString();
 
   Future<Position> getUserLocation() async {
     var permission = await geo.Geolocator.checkPermission();
@@ -71,7 +78,8 @@ class _MapScreenState extends State<MapScreen> {
       // Calculate ETA
       final origin = 'Denver';
       final destination = 'San Francisco';
-      DirectionsService.init('AIzaSyCCyfB2dfaTATspTTMCMf5d1tedRYXAgZ0');
+      DirectionsService.init(dotenv.env['DIRECTIONS_API_KEY'] ?? 'Failed to load Directions API Key');
+      // DirectionsService.init('AIzaSyCCyfB2dfaTATspTTMCMf5d1tedRYXAgZ0');
       final directionsService = DirectionsService();
       
       final request = DirectionsRequest(
@@ -162,7 +170,8 @@ class _MapScreenState extends State<MapScreen> {
                 return MapWidget(
                   resourceOptions: ResourceOptions(
                     accessToken:
-                        'pk.eyJ1IjoianZhbnNhbnRwdHMiLCJhIjoiY2w1YnI3ejNhMGFhdzNpbXA5MWExY3FqdiJ9.SNsWghIteFZD7DTuI4_FmA',
+                        // '',
+                        dotenv.env['MAPBOX_PUBLIC_ACCESS_TOKEN'] ?? 'Failed to load MapBox Access Token'
                   ),
                   key: ValueKey("mapWidget"),
                   cameraOptions: CameraOptions(
