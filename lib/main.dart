@@ -40,7 +40,7 @@ class _MapScreenState extends State<MapScreen> {
   Point? t1Coords;
   PointAnnotation? userLocation;
   Point? userCoords;
-  // String directionsKey = dotenv.env('DIRECTIONS_API_KEY', 'MAPBOX_MAPS_KEY').toString();
+  String? eta;
 
   Future<Position> getUserLocation() async {
     var permission = await geo.Geolocator.checkPermission();
@@ -76,16 +76,20 @@ class _MapScreenState extends State<MapScreen> {
       _createT1Marker();
 
       // Calculate ETA
-      final origin = 'Denver';
-      final destination = 'San Francisco';
+      final origin = '${t1Coords!.coordinates.lat}, ${t1Coords!.coordinates.lng}';
+      final destination = '38.89226825273266, -104.79764917960803';
       DirectionsService.init(dotenv.env['DIRECTIONS_API_KEY'] ?? 'Failed to load Directions API Key');
-      // DirectionsService.init('AIzaSyCCyfB2dfaTATspTTMCMf5d1tedRYXAgZ0');
       final directionsService = DirectionsService();
       
       final request = DirectionsRequest(
         origin: origin,
         destination: destination,
         travelMode: TravelMode.driving,
+        // waypoints: [
+        //   DirectionsWaypoint(location: '38.89122033268761, -104.79908324703885'),
+        //   DirectionsWaypoint(location: '38.89154559249909, -104.79803199145594'),
+        //   // DirectionsWaypoint(location: LatLng(38.892084300785534, -104.79797975515368)),
+        //   ],
       );
 
       directionsService.route(request,
@@ -93,9 +97,14 @@ class _MapScreenState extends State<MapScreen> {
         if (status == DirectionsStatus.ok) {
           final route = response.routes!.first;
           final duration = route.legs!.first.duration;
-          print('ETA: ${duration!.value.toString()} minutes');
+          // print('ETA: ${duration!.value.toString()} seconds');
+          setState(() {
+              eta = '${duration!.value.toString()} seconds';
+
+          });
         } else {
-          print('Error: $status');
+          // print('Error: $status');
+          eta = 'Error: $status';
         }
       });
     } else {
@@ -156,7 +165,7 @@ class _MapScreenState extends State<MapScreen> {
         appBar: AppBar(
           title: Text('Map Screen'),
         ),
-        body: StreamBuilder<Point>(
+        body: Column(children: [Expanded(child: StreamBuilder<Point>(
             stream: _iotStream.stream,
             initialData: t1Coords,
             builder: (BuildContext context, AsyncSnapshot<Point> snapshot) {
@@ -182,6 +191,16 @@ class _MapScreenState extends State<MapScreen> {
                 log('else block - stream');
                 return Center(child: Text('No data available'));
               }
-            }));
+            })
+            ), Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'ETA: $eta',
+                style: TextStyle(fontSize: 20.0),
+              ),
+            ),
+            ]
+            ,) 
+            );
   }
 }
