@@ -32,8 +32,8 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  StreamController<Point> _iotStream = StreamController.broadcast();
-  // StreamController<Point> _tracker2Stream = StreamController.broadcast();
+  StreamController<Point> _tracker1Stream = StreamController.broadcast();
+  StreamController<Point> _tracker2Stream = StreamController.broadcast();
   MapboxMap? mapboxMap;
   PointAnnotationManager? pointAnnotationManager;
   PointAnnotation? tracker1, tracker2, userLocation;
@@ -51,7 +51,8 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
-    _iotStream.close();
+    _tracker1Stream.close();
+    _tracker2Stream.close();
     super.dispose();
   }
 
@@ -69,7 +70,7 @@ class _MapScreenState extends State<MapScreen> {
         children: [
           Expanded(
             child: StreamBuilder<Point>(
-                stream: _iotStream.stream,
+                stream: _tracker1Stream.stream,
                 initialData: t1Coords,
                 builder: (BuildContext context, AsyncSnapshot<Point> snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -99,7 +100,7 @@ class _MapScreenState extends State<MapScreen> {
     drawer: 
       Drawer(backgroundColor: Colors.black,
         child: ListView(
-        padding: EdgeInsets.fromLTRB(0.0, 35.0, 5.0, 0.0),
+        padding: const EdgeInsets.fromLTRB(0.0, 35.0, 5.0, 0.0),
         children: [
           ListTile(
             title: RichText(
@@ -124,9 +125,43 @@ class _MapScreenState extends State<MapScreen> {
                           color: Colors.green,
                           fontWeight: FontWeight.bold))
                 ])),
-          onTap: () { _centerCameraOnLocation(t1Coords!);})
+          onTap: () { 
+            _centerCameraOnLocation(t1Coords!);
+            // log('centering camera on location: ${t1Coords!.toJson()}');
+            Navigator.pop(context);
+          }),
+          ListTile(
+            title: RichText(
+                text: TextSpan(
+                    text: 'Shuttle 2:\n',
+                    style: const TextStyle(
+                        fontSize: 21.0,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        backgroundColor: Colors.black),
+                    children: <TextSpan>[
+                  const TextSpan(
+                      text: 'XshuttleStop\t|\t',
+                      style: TextStyle(
+                          fontSize: 19.0,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold)),
+                  TextSpan(
+                      text: eta,
+                      style: const TextStyle(
+                          fontSize: 19.0,
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold))
+                ])),
+          onTap: () {
+             _centerCameraOnLocation(t2Coords!);
+            //  log('centering camera on location ${t2Coords!.toJson()}');
+             Navigator.pop(context);
+             })
         ],
-      ),)
+        
+      ),
+      )
     ));
   }
 
@@ -144,7 +179,6 @@ class _MapScreenState extends State<MapScreen> {
         return Future.error('Location permissions are denied');
       }
     }
-
     if (permission == geo.LocationPermission.deniedForever) {
       return Future.error(
           'Location permissions are permanently denied, we cannot request permissions.');
@@ -162,7 +196,7 @@ class _MapScreenState extends State<MapScreen> {
           .split(',')[1]);
       final tracker1Coords = Point(coordinates: Position(latTracker1, lngTracker1));
       t1Coords = tracker1Coords;
-      _iotStream.add(tracker1Coords);
+      _tracker1Stream.add(tracker1Coords);
   }
 
   _getTracker2(jsonResponse){
@@ -170,7 +204,7 @@ class _MapScreenState extends State<MapScreen> {
     final latTracker2 = double.parse(jsonResponse['tracker2']['value'].toString().split(',')[1]);
     final tracker2Coords = Point(coordinates: Position(latTracker2, lngTracker2));
     t2Coords = tracker2Coords;
-    _iotStream.add(tracker2Coords);
+    _tracker2Stream.add(tracker2Coords);
     // log('tracker2: $latTracker2, $lngTracker2');
     
   }
@@ -182,9 +216,9 @@ class _MapScreenState extends State<MapScreen> {
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(response.body);
       _getTracker1(jsonResponse);
-      _createT1Marker();
+      createMarker(t1Coords!, 'assets/shuttle_marker.png', 1);
       _getTracker2(jsonResponse);
-      _createT2Marker();
+      createMarker(t2Coords!, 'assets/shuttle_marker.png', 2);
       getUserLocation();
       // Calculate ETA
       final origin = '${t1Coords!.coordinates.lat}, ${t1Coords!.coordinates.lng}';
@@ -221,47 +255,40 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  Future<void> createMarker(Point point, String imagePath, int trackerNumber) async {
+    final ByteData bytes = await rootBundle.load(imagePath);
+    final Uint8List list = bytes.buffer.asUint8List();
+    PointAnnotation? tracker;
+
+    if (trackerNumber == 1) {
+      tracker = tracker1;
+    } else if (trackerNumber == 2) {
+      tracker = tracker2;
+    }
+
+    if (tracker == null) {
+      pointAnnotationManager?.create(PointAnnotationOptions(
+        textField: 'Shuttle $trackerNumber',
+        textOffset: [0, 1.25],
+        geometry: point.toJson(),
+        iconSize: .3,
+        symbolSortKey: 10,
+        image: list,
+      )).then((value) {
+        if (trackerNumber == 1) {
+          tracker1 = value;
+        } else if (trackerNumber == 2) {
+          tracker2 = value;
+        }
+      });
+    } else {
+      Point.fromJson((tracker.geometry)!.cast());
+      var newPoint = point.toJson();
+      tracker.geometry = newPoint;
+      pointAnnotationManager?.update(tracker);
+    }
+  }
   
-
-  Future<void> _createT1Marker() async {
-    final ByteData bytes = await rootBundle.load('assets/userLocation.png');
-    final Uint8List list = bytes.buffer.asUint8List();
-    if (tracker1 == null) {
-      pointAnnotationManager?.create(PointAnnotationOptions(
-              textField: 'Shuttle 1',
-              textOffset: [0, 1.25],
-              geometry: t1Coords!.toJson(),
-              iconSize: .3,
-              symbolSortKey: 10,
-              image: list))
-          .then((value) => tracker1 = value);
-    } else {
-      Point.fromJson((tracker1!.geometry)!.cast());
-      var newPoint = t1Coords!.toJson();
-      tracker1?.geometry = newPoint;
-      pointAnnotationManager?.update(tracker1!);
-    }
-  }
-
-  Future<void> _createT2Marker() async {
-    final ByteData bytes = await rootBundle.load('assets/userLocation.png');
-    final Uint8List list = bytes.buffer.asUint8List();
-    if (tracker2 == null) {
-      pointAnnotationManager?.create(PointAnnotationOptions(
-              textField: 'Shuttle 2',
-              textOffset: [0, 1.25],
-              geometry: t2Coords!.toJson(),
-              iconSize: .3,
-              symbolSortKey: 10,
-              image: list))
-          .then((value) => tracker2 = value);
-    } else {
-      Point.fromJson((tracker2!.geometry)!.cast());
-      var newPoint = t2Coords!.toJson();
-      tracker2?.geometry = newPoint;
-      pointAnnotationManager?.update(tracker2!);
-    }
-  }
 
   _onMapCreated(MapboxMap mapboxMap) {
     this.mapboxMap = mapboxMap;
