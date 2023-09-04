@@ -21,6 +21,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Mapbox Maps Flutter Demo',
       home: MapScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
@@ -31,13 +32,12 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  StreamController<Point> _iotStream = StreamController.broadcast();
+  StreamController<Point> _tracker1Stream = StreamController.broadcast();
+  StreamController<Point> _tracker2Stream = StreamController.broadcast();
   MapboxMap? mapboxMap;
   PointAnnotationManager? pointAnnotationManager;
-  PointAnnotation? tracker1;
-  Point? t1Coords;
-  PointAnnotation? userLocation;
-  Point? userCoords;
+  PointAnnotation? tracker1, tracker2, userLocation;
+  Point? t1Coords, t2Coords, userCoords;
   String? eta;
 
   @override
@@ -51,7 +51,7 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
-    _iotStream.close();
+    _tracker1Stream.close();
     super.dispose();
   }
 
@@ -70,7 +70,7 @@ class _MapScreenState extends State<MapScreen> {
           Expanded(
             
             child: StreamBuilder<Point>(
-                stream: _iotStream.stream,
+                stream: _tracker1Stream.stream,
                 initialData: t1Coords,
                 builder: (BuildContext context, AsyncSnapshot<Point> snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -143,23 +143,39 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  _getTracker1(jsonResponse){
+    final lngTracker1 = double.parse(jsonResponse['tracker1']['value']
+          .toString()
+          .split(',')[0]);
+      final latTracker1 = double.parse(jsonResponse['tracker1']['value']
+          .toString()
+          .split(',')[1]);
+      final tracker1Coords = Point(coordinates: Position(latTracker1, lngTracker1));
+      t1Coords = tracker1Coords;
+      _tracker1Stream.add(tracker1Coords);
+  }
+
+  _getTracker2(jsonResponse){
+    final lngTracker2 = double.parse(jsonResponse['tracker2']['value'].toString().split(',')[0]);
+    final latTracker2 = double.parse(jsonResponse['tracker2']['value'].toString().split(',')[1]);
+    final tracker2Coords = Point(coordinates: Position(latTracker2, lngTracker2));
+    t2Coords = tracker2Coords;
+    _tracker2Stream.add(tracker2Coords);
+    // log('tracker2: $latTracker2, $lngTracker2');
+    
+  }
+
   Future<void> fetchData() async {
     final response = await http.get(Uri.parse(
         'https://api.init.st/data/v1/events/latest?accessKey=ist_rg6P7BFsuN8Ekew6hKsE5t9QoMEp2KZN&bucketKey=jmvs_pts_tracker'));
 
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(response.body);
-      final lng = double.parse(jsonResponse['tracker1']['value']
-          .toString()
-          .split(',')[0]);
-      final lat = double.parse(jsonResponse['tracker1']['value']
-          .toString()
-          .split(',')[1]);
-      final coords = Point(coordinates: Position(lat, lng));
-      t1Coords = coords;
-      _iotStream.add(coords);
+      _getTracker1(jsonResponse);
       _createT1Marker();
-
+      _getTracker2(jsonResponse);
+      _createT2Marker();
+      getUserLocation();
       // Calculate ETA
       final origin = '${t1Coords!.coordinates.lat}, ${t1Coords!.coordinates.lng}';
       final destination = '38.89226825273266, -104.79764917960803';
@@ -213,7 +229,28 @@ class _MapScreenState extends State<MapScreen> {
       tracker1?.geometry = newPoint;
       pointAnnotationManager?.update(tracker1!);
     }
-    getUserLocation();
+    // getUserLocation();
+  }
+
+  Future<void> _createT2Marker() async {
+    final ByteData bytes = await rootBundle.load('assets/userLocation.png');
+    final Uint8List list = bytes.buffer.asUint8List();
+    if (tracker2 == null) {
+      pointAnnotationManager?.create(PointAnnotationOptions(
+              textField: 'Shuttle 2',
+              textOffset: [0, 1.25],
+              geometry: t2Coords!.toJson(),
+              iconSize: .3,
+              symbolSortKey: 10,
+              image: list))
+          .then((value) => tracker2 = value);
+    } else {
+      Point.fromJson((tracker2!.geometry)!.cast());
+      var newPoint = t2Coords!.toJson();
+      tracker2?.geometry = newPoint;
+      pointAnnotationManager?.update(tracker2!);
+    }
+    // getUserLocation();
   }
 
   _onMapCreated(MapboxMap mapboxMap) {
