@@ -38,7 +38,9 @@ class _MapScreenState extends State<MapScreen> {
   PointAnnotationManager? pointAnnotationManager;
   PointAnnotation? tracker1, tracker2, userLocation;
   Point? t1Coords, t2Coords, userCoords;
-  String? eta;
+  String? t1Eta, t2Eta, focusETA;
+  bool t1ButtonEnabled = true, t2ButtonEnabled = true;
+
 
   @override
   void initState() {
@@ -94,8 +96,16 @@ class _MapScreenState extends State<MapScreen> {
                     return const Center(child: Text('No data available'));
                   }
                 }),
+          ), 
+        Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: RichText(
+          text: TextSpan(
+            text: focusETA ?? '',
           ),
-        ],
+        ),
+      ),
+      ],
       ),
     drawer: 
       Drawer(backgroundColor: Colors.black,
@@ -118,18 +128,71 @@ class _MapScreenState extends State<MapScreen> {
                           fontSize: 19.0,
                           color: Colors.white,
                           fontWeight: FontWeight.bold)),
-                  TextSpan(
-                      text: eta,
-                      style: const TextStyle(
-                          fontSize: 19.0,
-                          color: Colors.green,
-                          fontWeight: FontWeight.bold))
-                ])),
-          onTap: () { 
-            _centerCameraOnLocation(t1Coords!);
-            // log('centering camera on location: ${t1Coords!.toJson()}');
-            Navigator.pop(context);
-          }),
+                    TextSpan(
+                            text: t1Eta ?? '',
+                            style: const TextStyle(
+                              fontSize: 19.0,
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                ]
+                )
+                ),
+
+onTap: () {
+  if (t1ButtonEnabled) {
+    _centerCameraOnLocation(t1Coords!);
+    focusETA = 'Calculating ETA...';
+    setState(() {
+      t1ButtonEnabled = false; // Disable the button
+    });
+
+    int duration = 0;
+    getETA(t1Coords!, t2Coords!).then((eta) {
+          duration = int.parse(eta);
+        });
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        duration -= 1;
+        t1Eta = duration.toString();
+        focusETA = duration.toString();
+      });
+
+      if (duration <= 0) {
+        timer.cancel();
+        setState(() {
+          t1ButtonEnabled = true; // Enable the button
+        });
+      }
+    });
+  }}
+
+          // onTap: () {
+          //   _centerCameraOnLocation(t1Coords!);
+          //   focusETA = 'Calculating ETA...';
+          //   setState(() {});
+          //   int duration = 0;
+          //   // log('getETA(): ${getETA(t1Coords!, t2Coords!)}');
+          //   getETA(t1Coords!, t2Coords!).then((eta) {
+          //     duration = int.parse(eta);
+          //   });
+          //   log('duration $duration');
+          //   Timer timer = Timer.periodic(Duration(seconds: 1), (timer) {
+          //   setState(() {
+          //       duration -=1;
+          //       t1Eta = duration.toString();
+          //       focusETA = duration.toString();
+          //     });
+
+          //     if (duration <= 0) {
+          //       timer.cancel();
+          //     } else {
+          //       duration -= 1;
+          //     }
+          //     });
+          // },
+          ),
           ListTile(
             title: RichText(
                 text: TextSpan(
@@ -147,19 +210,70 @@ class _MapScreenState extends State<MapScreen> {
                           color: Colors.white,
                           fontWeight: FontWeight.bold)),
                   TextSpan(
-                      text: eta,
+                      text: t2Eta ?? '',
                       style: const TextStyle(
                           fontSize: 19.0,
                           color: Colors.green,
                           fontWeight: FontWeight.bold))
-                ])),
-          onTap: () {
-             _centerCameraOnLocation(t2Coords!);
-            //  log('centering camera on location ${t2Coords!.toJson()}');
-             Navigator.pop(context);
-             })
+                ]
+                )
+                ),
+onTap: () {
+  if (t2ButtonEnabled) {
+    _centerCameraOnLocation(t2Coords!);
+    focusETA = 'Calculating ETA...';
+    setState(() {
+      t2ButtonEnabled = false;
+    });
+
+    int duration = 0;
+    getETA(t2Coords!, t1Coords!).then((eta) {
+          duration = int.parse(eta);
+        });
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        duration -= 1;
+        t2Eta = duration.toString();
+        focusETA = duration.toString();
+      });
+
+      if (duration <= 0) {
+        timer.cancel();
+        setState(() {
+          t2ButtonEnabled = true;
+        });
+      }
+    });
+  }}
+          // onTap: () {
+          //   _centerCameraOnLocation(t1Coords!);
+          //   bool isButtonEnabled;
+          //   focusETA = 'Calculating ETA...';
+          //   setState(() {
+          //     isButtonEnabled = false;
+          //   });
+          //   // int duration = (getETA(t1Coords!, t2Coords!)) as int;
+          //   int duration = 0;
+          //   getETA(t2Coords!, t1Coords!).then((eta) {
+          //     duration = int.parse(eta);
+          //   });
+          //   // log('duration $duration');
+          //   Timer timer = Timer.periodic(Duration(seconds: 1), (timer) {
+          //   setState(() {
+          //       duration -=1;
+          //       t2Eta = duration.toString();
+          //       focusETA = duration.toString();
+          //     });
+
+          //     if (duration <= 0) {
+          //       timer.cancel();
+          //     } else {
+          //       duration -= 1;
+          //     }
+          //     });
+          // },
+             )
         ],
-        
       ),
       )
     ));
@@ -187,27 +301,25 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  _getTracker1(jsonResponse){
-    final lngTracker1 = double.parse(jsonResponse['tracker1']['value']
-          .toString()
-          .split(',')[0]);
-      final latTracker1 = double.parse(jsonResponse['tracker1']['value']
-          .toString()
-          .split(',')[1]);
-      final tracker1Coords = Point(coordinates: Position(latTracker1, lngTracker1));
-      t1Coords = tracker1Coords;
-      _tracker1Stream.add(tracker1Coords);
+
+  Point getTracker(Map<String, dynamic> jsonResponse, int trackerNumber) {
+  final trackerKey = 'tracker$trackerNumber';
+  final trackerValue = jsonResponse[trackerKey]['value'].toString();
+  final lng = double.parse(trackerValue.split(',')[0]);
+  final lat = double.parse(trackerValue.split(',')[1]);
+  final trackerCoords = Point(coordinates: Position(lat, lng));
+
+  if (trackerNumber == 1) {
+    t1Coords = trackerCoords;
+    _tracker1Stream.add(trackerCoords);
+  } else if (trackerNumber == 2) {
+    t2Coords = trackerCoords;
+    _tracker2Stream.add(trackerCoords);
   }
 
-  _getTracker2(jsonResponse){
-    final lngTracker2 = double.parse(jsonResponse['tracker2']['value'].toString().split(',')[0]);
-    final latTracker2 = double.parse(jsonResponse['tracker2']['value'].toString().split(',')[1]);
-    final tracker2Coords = Point(coordinates: Position(latTracker2, lngTracker2));
-    t2Coords = tracker2Coords;
-    _tracker2Stream.add(tracker2Coords);
-    // log('tracker2: $latTracker2, $lngTracker2');
-    
-  }
+  return trackerCoords;
+}
+
 
   Future<void> fetchData() async {
     final response = await http.get(Uri.parse(
@@ -215,45 +327,83 @@ class _MapScreenState extends State<MapScreen> {
 
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(response.body);
-      _getTracker1(jsonResponse);
+      getTracker(jsonResponse, 1);
       createMarker(t1Coords!, 'assets/shuttle_marker.png', 1);
-      _getTracker2(jsonResponse);
+      getTracker(jsonResponse, 2);
       createMarker(t2Coords!, 'assets/shuttle_marker.png', 2);
       getUserLocation();
-      // Calculate ETA
-      final origin = '${t1Coords!.coordinates.lat}, ${t1Coords!.coordinates.lng}';
-      final destination = '38.89226825273266, -104.79764917960803';
-      DirectionsService.init(
-          dotenv.env['DIRECTIONS_API_KEY'] ?? 'Failed to load Directions API Key');
-      final directionsService = DirectionsService();
-
-      final request = DirectionsRequest(
-        origin: origin,
-        destination: destination,
-        travelMode: TravelMode.driving,
-        waypoints: [
-          DirectionsWaypoint(location: '38.89122033268761, -104.79908324703885'),
-          DirectionsWaypoint(location: '38.89154559249909, -104.79803199145594'),
-          // DirectionsWaypoint(location: LatLng(38.892084300785534, -104.79797975515368)),
-        ],
-      );
-
-      directionsService.route(request,
-          (DirectionsResult response, DirectionsStatus? status) {
-        if (status == DirectionsStatus.ok) {
-          final route = response.routes!.first;
-          final duration = route.legs!.first.duration;
-          setState(() {
-            eta = '${duration!.value.toString()} seconds';
-          });
-        } else {
-          eta = 'Error: $status';
-        }
-      });
     } else {
       throw Exception('Failed to load data');
     }
   }
+
+ Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints]) async {
+  final originStr = '${origin.coordinates.lat}, ${origin.coordinates.lng}';
+  final destinationStr = '${destination.coordinates.lat}, ${destination.coordinates.lng}';
+  DirectionsService.init(dotenv.env['DIRECTIONS_API_KEY'] ?? 'Failed to load Directions API Key');
+  final directionsService = DirectionsService();
+
+  final request = DirectionsRequest(
+    origin: originStr,
+    destination: destinationStr,
+    travelMode: TravelMode.driving,
+    waypoints: waypoints?.map((waypoint) => DirectionsWaypoint(
+      location: '${waypoint.coordinates.lat}, ${waypoint.coordinates.lng}',
+    )).toList(),
+  );
+
+  final Completer<String> completer = Completer<String>();
+
+  directionsService.route(request, (DirectionsResult response, DirectionsStatus? status) {
+    if (status == DirectionsStatus.ok) {
+      final route = response.routes!.first;
+      final duration = route.legs!.first.duration;
+      completer.complete('${duration!.value.toString()}');
+    } else {
+      completer.complete('Error: $status');
+    }
+  });
+  return completer.future;
+}
+
+// Future<Timer> getETA(Point origin, Point destination, [List<Point>? waypoints]) async {
+//   final originStr = '${origin.coordinates.lat}, ${origin.coordinates.lng}';
+//   final destinationStr = '${destination.coordinates.lat}, ${destination.coordinates.lng}';
+//   DirectionsService.init(dotenv.env['DIRECTIONS_API_KEY'] ?? 'Failed to load Directions API Key');
+//   final directionsService = DirectionsService();
+
+//   final request = DirectionsRequest(
+//     origin: originStr,
+//     destination: destinationStr,
+//     travelMode: TravelMode.driving,
+//     waypoints: waypoints?.map((waypoint) => DirectionsWaypoint(
+//       location: '${waypoint.coordinates.lat}, ${waypoint.coordinates.lng}',
+//     )).toList(),
+//   );
+
+//   final completer = Completer<Timer>();
+
+//   directionsService.route(request, (DirectionsResult response, DirectionsStatus? status) {
+//     if (status == DirectionsStatus.ok) {
+//       final route = response.routes!.first;
+//       final duration = route.legs!.first.duration;
+//       final eta = '${duration!.value.toString()} seconds';
+
+//       final timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+//         // Update the ETA every second
+//         completer.complete(timer);
+//       });
+
+//       // Complete the completer with the timer
+//       completer.complete(timer);
+//     } else {
+//       completer.completeError('Error: $status');
+//     }
+//   });
+
+//   return completer.future;
+// }
+  
 
   Future<void> createMarker(Point point, String imagePath, int trackerNumber) async {
     final ByteData bytes = await rootBundle.load(imagePath);
