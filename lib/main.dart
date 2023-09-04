@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
-import 'package:latlong2/latlong.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -39,7 +38,68 @@ class _MapScreenState extends State<MapScreen> {
   PointAnnotation? tracker1, tracker2, userLocation;
   Point? t1Coords, t2Coords, userCoords;
   String? t1Eta, t2Eta, focusETA;
+  String t1Approaching = '', t2Approaching = '';
   bool t1ButtonEnabled = true, t2ButtonEnabled = true;
+  Timer? t1ETATimer;
+
+  String xShuttleStop = ''; // Initialize the xShuttleStop variable
+List<String> shuttleStops = [
+  'Gateway Hall Stop',
+  'Centennial Stop',
+  'University Hall Stop',
+  'ROTC Stop',
+  'Lodge Stop'
+]; // Define the shuttle stops in order
+
+void updateXShuttleStop(String currentStop, int trackerNum) async {
+  log('updateXStop: $currentStop, $trackerNum');
+  int currentIndex = shuttleStops.indexOf(currentStop);
+  if (currentIndex == -1) {
+    xShuttleStop = ''; // Reset the xShuttleStop if currentStop is not found
+    // return '';
+  }
+
+  int nextIndex = currentIndex + 1;
+  if (nextIndex >= shuttleStops.length) {
+    nextIndex = 0;// Reset the xShuttleStop if currentStop is the last stop
+    // return '';
+  }
+
+  String nextStop = shuttleStops[nextIndex];
+  xShuttleStop = nextStop;
+  switch(trackerNum){
+    case 1: setState(() {
+      t1Approaching = xShuttleStop;
+    }); break;
+    case 2: setState(() {
+      t2Approaching = xShuttleStop;
+    }); break;
+    default: setState(() {t1Approaching = 'Error in getStops()'; t2Approaching = 'Error in getStops()';});
+  }
+
+  // Future<String> etaFuture = getETA(t1Coords!, t2Coords!);
+  // int eta = int.parse(await etaFuture);
+  // startCountdown(eta);
+}
+
+// void startCountdown(int eta) {
+//   int _countdownSeconds;
+//   // Timer? _timer;
+//   _countdownSeconds = eta;
+
+//   // _timer?.cancel();
+//   t1ETATimer = Timer.periodic(Duration(seconds: 1), (timer) {
+//     setState(() {
+//       if (_countdownSeconds > 0) {
+//         _countdownSeconds--;
+//         t1Eta = _countdownSeconds.toString();
+//       } else {
+//         t1ETATimer?.cancel();
+//       }
+//     });
+//   });
+// }
+
 
 
   @override
@@ -50,7 +110,9 @@ class _MapScreenState extends State<MapScreen> {
       fetchData().then((_){
         setState(() {
           getETA(t1Coords!, t2Coords!).then((value) => t1Eta = value);
+          updateXShuttleStop('Gateway Hall Stop', 1);
           getETA(t2Coords!, t1Coords!).then((value) => t2Eta = value);
+          updateXShuttleStop('Lodge Stop', 2);
         });
       });
     });
@@ -127,16 +189,16 @@ class _MapScreenState extends State<MapScreen> {
                         fontWeight: FontWeight.bold,
                         backgroundColor: Colors.black),
                     children: <TextSpan>[
-                  const TextSpan(
-                      text: 'XshuttleStop\t|\t',
+                   TextSpan(
+                      text: '$t1Approaching\t|\t',
                       style: TextStyle(
-                          fontSize: 19.0,
+                          fontSize: 15.0,
                           color: Colors.white,
                           fontWeight: FontWeight.bold)),
                     TextSpan(
-                            text: t1Eta,
+                            text: '$t1Eta seconds',
                             style: const TextStyle(
-                              fontSize: 19.0,
+                              fontSize: 17.0,
                               color: Colors.green,
                               fontWeight: FontWeight.bold,
                             ),
@@ -164,16 +226,16 @@ class _MapScreenState extends State<MapScreen> {
                         fontWeight: FontWeight.bold,
                         backgroundColor: Colors.black),
                     children: <TextSpan>[
-                  const TextSpan(
-                      text: 'XshuttleStop\t|\t',
+                   TextSpan(
+                      text: '$t2Approaching\t|\t',
                       style: TextStyle(
-                          fontSize: 19.0,
+                          fontSize: 15.0,
                           color: Colors.white,
                           fontWeight: FontWeight.bold)),
                   TextSpan(
-                      text: t2Eta,
+                      text: '$t2Eta seconds',
                       style: const TextStyle(
-                          fontSize: 19.0,
+                          fontSize: 17.0,
                           color: Colors.green,
                           fontWeight: FontWeight.bold))
                 ]
