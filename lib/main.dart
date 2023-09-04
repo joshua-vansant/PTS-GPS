@@ -47,9 +47,16 @@ class _MapScreenState extends State<MapScreen> {
     super.initState();
     getUserLocation();
     Timer.periodic(const Duration(seconds: 1), (timer) {
-      fetchData();
+      fetchData().then((_){
+        setState(() {
+          getETA(t1Coords!, t2Coords!).then((value) => t1Eta = value);
+          getETA(t2Coords!, t1Coords!).then((value) => t2Eta = value);
+        });
+      });
     });
+
   }
+
 
   @override
   void dispose() {
@@ -76,7 +83,6 @@ class _MapScreenState extends State<MapScreen> {
                 initialData: t1Coords,
                 builder: (BuildContext context, AsyncSnapshot<Point> snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    // log('waiting');
                     return const Center(child: CircularProgressIndicator());
                   } else if (snapshot.hasError) {
                     return Center(child: Text('Error: ${snapshot.error}'));
@@ -92,7 +98,6 @@ class _MapScreenState extends State<MapScreen> {
                       onMapCreated: _onMapCreated,
                     );
                   } else {
-                    // log('else block - stream');
                     return const Center(child: Text('No data available'));
                   }
                 }),
@@ -129,7 +134,7 @@ class _MapScreenState extends State<MapScreen> {
                           color: Colors.white,
                           fontWeight: FontWeight.bold)),
                     TextSpan(
-                            text: t1Eta ?? '',
+                            text: t1Eta,
                             style: const TextStyle(
                               fontSize: 19.0,
                               color: Colors.green,
@@ -139,59 +144,15 @@ class _MapScreenState extends State<MapScreen> {
                 ]
                 )
                 ),
+                onTap: () => {
+                  _centerCameraOnLocation(t1Coords!),
+                  focusETA = 'Calculating ETA...',
+                  setState(() {
+                    focusETA = t1Eta;
+                  }),
+                  Navigator.pop(context)
 
-onTap: () {
-  if (t1ButtonEnabled) {
-    _centerCameraOnLocation(t1Coords!);
-    focusETA = 'Calculating ETA...';
-    setState(() {
-      t1ButtonEnabled = false; // Disable the button
-    });
-
-    int duration = 0;
-    getETA(t1Coords!, t2Coords!).then((eta) {
-          duration = int.parse(eta);
-        });
-    Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        duration -= 1;
-        t1Eta = duration.toString();
-        focusETA = duration.toString();
-      });
-
-      if (duration <= 0) {
-        timer.cancel();
-        setState(() {
-          t1ButtonEnabled = true; // Enable the button
-        });
-      }
-    });
-  }}
-
-          // onTap: () {
-          //   _centerCameraOnLocation(t1Coords!);
-          //   focusETA = 'Calculating ETA...';
-          //   setState(() {});
-          //   int duration = 0;
-          //   // log('getETA(): ${getETA(t1Coords!, t2Coords!)}');
-          //   getETA(t1Coords!, t2Coords!).then((eta) {
-          //     duration = int.parse(eta);
-          //   });
-          //   log('duration $duration');
-          //   Timer timer = Timer.periodic(Duration(seconds: 1), (timer) {
-          //   setState(() {
-          //       duration -=1;
-          //       t1Eta = duration.toString();
-          //       focusETA = duration.toString();
-          //     });
-
-          //     if (duration <= 0) {
-          //       timer.cancel();
-          //     } else {
-          //       duration -= 1;
-          //     }
-          //     });
-          // },
+                }
           ),
           ListTile(
             title: RichText(
@@ -210,7 +171,7 @@ onTap: () {
                           color: Colors.white,
                           fontWeight: FontWeight.bold)),
                   TextSpan(
-                      text: t2Eta ?? '',
+                      text: t2Eta,
                       style: const TextStyle(
                           fontSize: 19.0,
                           color: Colors.green,
@@ -218,61 +179,15 @@ onTap: () {
                 ]
                 )
                 ),
-onTap: () {
-  if (t2ButtonEnabled) {
-    _centerCameraOnLocation(t2Coords!);
-    focusETA = 'Calculating ETA...';
-    setState(() {
-      t2ButtonEnabled = false;
-    });
-
-    int duration = 0;
-    getETA(t2Coords!, t1Coords!).then((eta) {
-          duration = int.parse(eta);
-        });
-    Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        duration -= 1;
-        t2Eta = duration.toString();
-        focusETA = duration.toString();
-      });
-
-      if (duration <= 0) {
-        timer.cancel();
-        setState(() {
-          t2ButtonEnabled = true;
-        });
-      }
-    });
-  }}
-          // onTap: () {
-          //   _centerCameraOnLocation(t1Coords!);
-          //   bool isButtonEnabled;
-          //   focusETA = 'Calculating ETA...';
-          //   setState(() {
-          //     isButtonEnabled = false;
-          //   });
-          //   // int duration = (getETA(t1Coords!, t2Coords!)) as int;
-          //   int duration = 0;
-          //   getETA(t2Coords!, t1Coords!).then((eta) {
-          //     duration = int.parse(eta);
-          //   });
-          //   // log('duration $duration');
-          //   Timer timer = Timer.periodic(Duration(seconds: 1), (timer) {
-          //   setState(() {
-          //       duration -=1;
-          //       t2Eta = duration.toString();
-          //       focusETA = duration.toString();
-          //     });
-
-          //     if (duration <= 0) {
-          //       timer.cancel();
-          //     } else {
-          //       duration -= 1;
-          //     }
-          //     });
-          // },
-             )
+                onTap: () => {
+                  _centerCameraOnLocation(t2Coords!),
+                  focusETA = 'Calculating ETA...',
+                  setState(() {
+                    focusETA = t2Eta;
+                  }),
+                  Navigator.pop(context)
+                }
+ )
         ],
       ),
       )
@@ -280,7 +195,7 @@ onTap: () {
   }
 
   void _centerCameraOnLocation(Point location) {
-  mapboxMap?.setCamera(CameraOptions(center: location.toJson())
+  mapboxMap?.setCamera(CameraOptions(center: location.toJson(), zoom: 19)
   );
 }
 
@@ -365,45 +280,6 @@ onTap: () {
   });
   return completer.future;
 }
-
-// Future<Timer> getETA(Point origin, Point destination, [List<Point>? waypoints]) async {
-//   final originStr = '${origin.coordinates.lat}, ${origin.coordinates.lng}';
-//   final destinationStr = '${destination.coordinates.lat}, ${destination.coordinates.lng}';
-//   DirectionsService.init(dotenv.env['DIRECTIONS_API_KEY'] ?? 'Failed to load Directions API Key');
-//   final directionsService = DirectionsService();
-
-//   final request = DirectionsRequest(
-//     origin: originStr,
-//     destination: destinationStr,
-//     travelMode: TravelMode.driving,
-//     waypoints: waypoints?.map((waypoint) => DirectionsWaypoint(
-//       location: '${waypoint.coordinates.lat}, ${waypoint.coordinates.lng}',
-//     )).toList(),
-//   );
-
-//   final completer = Completer<Timer>();
-
-//   directionsService.route(request, (DirectionsResult response, DirectionsStatus? status) {
-//     if (status == DirectionsStatus.ok) {
-//       final route = response.routes!.first;
-//       final duration = route.legs!.first.duration;
-//       final eta = '${duration!.value.toString()} seconds';
-
-//       final timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-//         // Update the ETA every second
-//         completer.complete(timer);
-//       });
-
-//       // Complete the completer with the timer
-//       completer.complete(timer);
-//     } else {
-//       completer.completeError('Error: $status');
-//     }
-//   });
-
-//   return completer.future;
-// }
-  
 
   Future<void> createMarker(Point point, String imagePath, int trackerNumber) async {
     final ByteData bytes = await rootBundle.load(imagePath);
