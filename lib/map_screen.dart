@@ -10,6 +10,7 @@ import 'package:google_directions_api/google_directions_api.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'dart:math' as math;
+import 'package:latlong2/latlong.dart';
 
 
 
@@ -39,6 +40,7 @@ class _MapScreenState extends State<MapScreen> {
     'ROTC Stop',
     'Lodge Stop'
   ]; // Define the shuttle stops in order
+
 
 void updateXShuttleStop(String currentStop, int trackerNum) async {
   log('updateXStop: $currentStop, $trackerNum');
@@ -76,8 +78,6 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
       getTrackers(value);
       getETA(t1Coords!, t2Coords!).then((value) => t1Eta = value);
       getETA(t2Coords!, t1Coords!).then((value) => t2Eta = value);
-      createMarker(t1Coords!, 'assets/shuttle_marker.png', 1);
-      createMarker(t2Coords!, 'assets/shuttle_marker.png', 2);
     });
 
 
@@ -100,6 +100,8 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
        }
      });
   }
+
+  
 
 
   @override
@@ -239,7 +241,7 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
   }
 
   void _centerCameraOnLocation(Point location) {
-  mapboxMap?.setCamera(CameraOptions(center: location.toJson(), zoom: 19)
+  mapboxMap?.setCamera(CameraOptions(center: location.toJson())
   );
 }
 
@@ -278,7 +280,9 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
       t2Coords = tracker2Point;
       _tracker1Stream.add(tracker1Point);
       _tracker2Stream.add(tracker2Point);
-    });
+      createMarker(t1Coords!, 'assets/bus_1.png', 1);
+      createMarker(t2Coords!, 'assets/bus_2.png', 2);
+          });
 
 }
 
@@ -346,6 +350,7 @@ Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints])
   Future<void> createMarker(Point point, String imagePath, int trackerNumber) async {
     final ByteData bytes = await rootBundle.load(imagePath);
     final Uint8List list = bytes.buffer.asUint8List();
+    // log('image loaded: $list');
     PointAnnotation? tracker;
 
     if (trackerNumber == 1) {
@@ -359,7 +364,7 @@ Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints])
         textField: 'Shuttle $trackerNumber',
         textOffset: [0, 1.25],
         geometry: point.toJson(),
-        iconSize: .3,
+        iconSize: 1,
         symbolSortKey: 10,
         image: list,
       )).then((value) {
@@ -384,10 +389,27 @@ Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints])
 
   _onMapCreated(MapboxMap mapboxMap) {
     this.mapboxMap = mapboxMap;
-    this.mapboxMap!.gestures.updateSettings(GesturesSettings(rotateEnabled: false));
+    this.mapboxMap!.gestures.updateSettings(GesturesSettings(rotateEnabled: false, doubleTapToZoomInEnabled: false, pinchToZoomEnabled: false,));
     this.mapboxMap!.location.updateSettings(LocationComponentSettings(enabled: true)); // show current position
-    mapboxMap.annotations.createPointAnnotationManager().then((value) async {
+    // CameraBounds bounds = CameraBounds(bounds: CoordinateBounds(southwest: Point(coordinates: Position(38.86, -104.76)).toJson(), northeast: Point(coordinates: Position(38.91, -104.83)).toJson(), infiniteBounds: false), maxZoom: 15, minZoom: 3, maxPitch: 360, minPitch: 0);
+    // this.mapboxMap!.gestures.getSettings().then((value) => {
+      // GesturesSettings(pinchToZoomEnabled: false, quickZoomEnabled: false, doubleTapToZoomInEnabled: false, rotateEnabled: false),
+      // value.doubleTapToZoomInEnabled = false,
+      // value.pinchToZoomEnabled = false
+      // }
+      // );
+      
+      this.mapboxMap!.setBounds(
+        CameraBoundsOptions(bounds: CoordinateBounds
+        (southwest: Point(coordinates: Position(38.885950899335185, -104.82192257233655)).toJson(), 
+        northeast:  Point(coordinates: Position(38.913727655885715, -104.77512700039927)).toJson(), 
+        infiniteBounds: false,)
+        , minZoom: 10
+        , maxZoom: 20
+        ));
+      mapboxMap.annotations.createPointAnnotationManager().then((value) async {
       pointAnnotationManager = value;
     });
+    
   }
 }
