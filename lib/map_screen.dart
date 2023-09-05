@@ -8,6 +8,8 @@ import 'dart:developer';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:google_directions_api/google_directions_api.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'dart:math' as math;
 
 
 
@@ -27,28 +29,27 @@ class _MapScreenState extends State<MapScreen> {
   String t1Approaching = '', t2Approaching = '';
   bool t1ButtonEnabled = true, t2ButtonEnabled = true;
   Timer? t1ETATimer;
+  final cacheManager = DefaultCacheManager();
 
   String xShuttleStop = ''; // Initialize the xShuttleStop variable
-List<String> shuttleStops = [
-  'Gateway Hall Stop',
-  'Centennial Stop',
-  'University Hall Stop',
-  'ROTC Stop',
-  'Lodge Stop'
-]; // Define the shuttle stops in order
+  List<String> shuttleStops = [
+    'Gateway Hall Stop',
+    'Centennial Stop',
+    'University Hall Stop',
+    'ROTC Stop',
+    'Lodge Stop'
+  ]; // Define the shuttle stops in order
 
 void updateXShuttleStop(String currentStop, int trackerNum) async {
   log('updateXStop: $currentStop, $trackerNum');
   int currentIndex = shuttleStops.indexOf(currentStop);
   if (currentIndex == -1) {
     xShuttleStop = ''; // Reset the xShuttleStop if currentStop is not found
-    // return '';
   }
 
   int nextIndex = currentIndex + 1;
   if (nextIndex >= shuttleStops.length) {
     nextIndex = 0;// Reset the xShuttleStop if currentStop is the last stop
-    // return '';
   }
 
   String nextStop = shuttleStops[nextIndex];
@@ -64,41 +65,40 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
   }
 }
 
-// void startCountdown(int eta) {
-//   int _countdownSeconds;
-//   // Timer? _timer;
-//   _countdownSeconds = eta;
-
-//   // _timer?.cancel();
-//   t1ETATimer = Timer.periodic(Duration(seconds: 1), (timer) {
-//     setState(() {
-//       if (_countdownSeconds > 0) {
-//         _countdownSeconds--;
-//         t1Eta = _countdownSeconds.toString();
-//       } else {
-//         t1ETATimer?.cancel();
-//       }
-//     });
-//   });
-// }
-
-
 
   @override
   void initState() {
     super.initState();
     getUserLocation();
-    Timer.periodic(const Duration(seconds: 1), (timer) {
-      fetchData().then((_){
-        setState(() {
-          getETA(t1Coords!, t2Coords!).then((value) => t1Eta = value);
-          updateXShuttleStop('Gateway Hall Stop', 1);
-          getETA(t2Coords!, t1Coords!).then((value) => t2Eta = value);
-          updateXShuttleStop('Lodge Stop', 2);
-        });
-      });
+
+    //fetch initial ETA values
+    fetchData().then((value) {
+      getTrackers(value);
+      getETA(t1Coords!, t2Coords!).then((value) => t1Eta = value);
+      getETA(t2Coords!, t1Coords!).then((value) => t2Eta = value);
+      createMarker(t1Coords!, 'assets/shuttle_marker.png', 1);
+      createMarker(t2Coords!, 'assets/shuttle_marker.png', 2);
     });
 
+
+    //update displayed values every second
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      fetchData().then(((value) {
+        getTrackers(value);
+      }));
+      setState(() {
+        t1Eta = math.max(0, int.parse(t1Eta!) - 1).toString();  
+        t2Eta = math.max(0, int.parse(t2Eta!) -1).toString();
+            });
+
+       //fetch new ETA values every 30 seconds
+       if(timer.tick %30 == 0) {
+        fetchData().then((_) => {
+          getETA(t1Coords!, t2Coords!).then((value) => t1Eta = value),
+          getETA(t2Coords!, t1Coords!).then((value) => t2Eta = value)
+        });
+       }
+     });
   }
 
 
@@ -261,68 +261,86 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
   }
 
 
-  Point getTracker(Map<String, dynamic> jsonResponse, int trackerNumber) {
-  final trackerKey = 'tracker$trackerNumber';
-  final trackerValue = jsonResponse[trackerKey]['value'].toString();
-  final lng = double.parse(trackerValue.split(',')[0]);
-  final lat = double.parse(trackerValue.split(',')[1]);
-  final trackerCoords = Point(coordinates: Position(lat, lng));
+  void getTrackers(Map<String, dynamic> jsonResponse) {
+  final tracker1Value = jsonResponse['tracker1']['value'].toString();
+  final lng = double.parse(tracker1Value.split(',')[0]);
+  final lat = double.parse(tracker1Value.split(',')[1]);
+  final tracker1Point = Point(coordinates: Position(lat, lng));
+  log('tracker1Point: ${tracker1Point.toJson()}');
 
-  if (trackerNumber == 1) {
-    t1Coords = trackerCoords;
-    _tracker1Stream.add(trackerCoords);
-  } else if (trackerNumber == 2) {
-    t2Coords = trackerCoords;
-    _tracker2Stream.add(trackerCoords);
-  }
+  final tracker2Value = jsonResponse['tracker2']['value'].toString();
+  final t2lng = double.parse(tracker2Value.split(',')[0]);
+  final t2lat = double.parse(tracker2Value.split(',')[1]);
+  final tracker2Point = Point(coordinates: Position(t2lat, t2lng));
+  log('tracker2Point: ${tracker2Point.toJson()}');
+    setState(() {
+      t1Coords = tracker1Point;
+      t2Coords = tracker2Point;
+      _tracker1Stream.add(tracker1Point);
+      _tracker2Stream.add(tracker2Point);
+    });
 
-  return trackerCoords;
 }
 
 
-  Future<void> fetchData() async {
+  Future<dynamic> fetchData() async {
     final response = await http.get(Uri.parse(
         'https://api.init.st/data/v1/events/latest?accessKey=ist_rg6P7BFsuN8Ekew6hKsE5t9QoMEp2KZN&bucketKey=jmvs_pts_tracker'));
 
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(response.body);
-      getTracker(jsonResponse, 1);
-      createMarker(t1Coords!, 'assets/shuttle_marker.png', 1);
-      getTracker(jsonResponse, 2);
-      createMarker(t2Coords!, 'assets/shuttle_marker.png', 2);
-      getUserLocation();
+      // getTracker(jsonResponse, 1);
+      // createMarker(t1Coords!, 'assets/shuttle_marker.png', 1);
+      // getTracker(jsonResponse, 2);
+      // createMarker(t2Coords!, 'assets/shuttle_marker.png', 2);
+      // getUserLocation();
+      return jsonResponse;
     } else {
       throw Exception('Failed to load data');
     }
   }
 
- Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints]) async {
+Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints]) async {
   final originStr = '${origin.coordinates.lat}, ${origin.coordinates.lng}';
   final destinationStr = '${destination.coordinates.lat}, ${destination.coordinates.lng}';
-  DirectionsService.init(dotenv.env['DIRECTIONS_API_KEY'] ?? 'Failed to load Directions API Key');
-  final directionsService = DirectionsService();
 
-  final request = DirectionsRequest(
-    origin: originStr,
-    destination: destinationStr,
-    travelMode: TravelMode.driving,
-    waypoints: waypoints?.map((waypoint) => DirectionsWaypoint(
-      location: '${waypoint.coordinates.lat}, ${waypoint.coordinates.lng}',
-    )).toList(),
-  );
+  final cacheKey = '$originStr-$destinationStr';
 
-  final Completer<String> completer = Completer<String>();
-
-  directionsService.route(request, (DirectionsResult response, DirectionsStatus? status) {
-    if (status == DirectionsStatus.ok) {
-      final route = response.routes!.first;
-      final duration = route.legs!.first.duration;
-      completer.complete('${duration!.value.toString()}');
+  final fileStream = cacheManager.getFileFromCache(cacheKey);
+  return fileStream.then((fileInfo) async {
+    if (fileInfo != null && await fileInfo.file.exists()) {
+      final file = fileInfo.file;
+      final cachedValue = await file.readAsString();
+      return cachedValue;
     } else {
-      completer.complete('Error: $status');
+      DirectionsService.init(dotenv.env['DIRECTIONS_API_KEY'] ?? 'Failed to load Directions API Key');
+      final directionsService = DirectionsService();
+
+      final request = DirectionsRequest(
+        origin: originStr,
+        destination: destinationStr,
+        travelMode: TravelMode.driving,
+        waypoints: waypoints?.map((waypoint) => DirectionsWaypoint(
+          location: '${waypoint.coordinates.lat}, ${waypoint.coordinates.lng}',
+        )).toList(),
+      );
+
+      final Completer<String> completer = Completer<String>();
+
+      directionsService.route(request, (DirectionsResult response, DirectionsStatus? status) async {
+        if (status == DirectionsStatus.ok) {
+          final route = response.routes!.first;
+          final duration = route.legs!.first.duration;
+          final eta = '${duration!.value.toString()}';
+          final file = await cacheManager.putFile(cacheKey, Uint8List.fromList(eta.codeUnits));
+          completer.complete(eta);
+        } else {
+          completer.complete('Error: $status');
+        }
+      });
+      return completer.future;
     }
   });
-  return completer.future;
 }
 
   Future<void> createMarker(Point point, String imagePath, int trackerNumber) async {
@@ -346,9 +364,13 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
         image: list,
       )).then((value) {
         if (trackerNumber == 1) {
-          tracker1 = value;
+          setState(() {
+            tracker1 = value;
+          });
         } else if (trackerNumber == 2) {
-          tracker2 = value;
+          setState(() {
+            tracker2 = value;
+          });
         }
       });
     } else {
