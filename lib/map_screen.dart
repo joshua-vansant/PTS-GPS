@@ -31,41 +31,83 @@ class _MapScreenState extends State<MapScreen> {
   bool t1ButtonEnabled = true, t2ButtonEnabled = true;
   Timer? t1ETATimer;
   final cacheManager = DefaultCacheManager();
+  geo.GeolocatorPlatform geolocatorPlatform = geo.GeolocatorPlatform.instance;
 
   String xShuttleStop = ''; // Initialize the xShuttleStop variable
-  List<String> shuttleStops = [
-    'Gateway Hall Stop',
-    'Centennial Stop',
-    'University Hall Stop',
-    'ROTC Stop',
-    'Lodge Stop'
-  ]; // Define the shuttle stops in order
+  // List<String> shuttleStops = [
+  //   'Gateway Hall Stop',
+  //   'Centennial Stop',
+  //   'University Hall Stop',
+  //   'ROTC Stop',
+  //   'Lodge Stop'
+  // ]; // Define the shuttle stops in order
+
+  List<Map<String, Point>> shuttleStops = [
+  {
+    'Gateway Hall Stop': Point(coordinates: Position(38.89186724000255, -104.80296157732812)),
+  },
+  {
+    'Centennial Stop': Point(coordinates: Position(38.891729971857785, -104.79906405070052)),
+  },
+  // Add more stops as needed
+];
 
 
-void updateXShuttleStop(String currentStop, int trackerNum) async {
-  log('updateXStop: $currentStop, $trackerNum');
-  int currentIndex = shuttleStops.indexOf(currentStop);
-  if (currentIndex == -1) {
-    xShuttleStop = ''; // Reset the xShuttleStop if currentStop is not found
-  }
+void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops, int trakcerNum) async {
+  log('updating current stop from ${userLocation.toJson()} for tracker$trakcerNum');
+  const double maxDistanceFeet = 300.0;
+  const double metersPerFoot = 0.3048;
+  double maxDistanceMeters = maxDistanceFeet * metersPerFoot;
+  // const double maxDistance = 91.44; // 300 feet in meters
 
-  int nextIndex = currentIndex + 1;
-  if (nextIndex >= shuttleStops.length) {
-    nextIndex = 0;// Reset the xShuttleStop if currentStop is the last stop
-  }
-
-  String nextStop = shuttleStops[nextIndex];
-  xShuttleStop = nextStop;
-  switch(trackerNum){
-    case 1: setState(() {
-      t1Approaching = xShuttleStop;
-    }); break;
-    case 2: setState(() {
-      t2Approaching = xShuttleStop;
-    }); break;
-    default: setState(() {t1Approaching = 'Error in getStops()'; t2Approaching = 'Error in getStops()';});
+  for (Map<String, Point> stop in shuttleStops) {
+    Point stopCoords = stop.values.first;
+    double distance = geolocatorPlatform.distanceBetween(
+      userLocation.coordinates.lat as double,
+      userLocation.coordinates.lng as double,
+      stopCoords.coordinates.lat as double,
+      stopCoords.coordinates.lng as double,
+    );
+    log('distance from tracker$trakcerNum: ${userLocation.toJson()} to ${stop.values.first.toJson()} is: $distance');
+    if (distance <= maxDistanceMeters) {
+      log('found a distance less than maxDistance! UPDATING T1APPROACHING');
+      setState(() {
+        switch(trakcerNum){
+          case 1: t1Approaching = stop.keys.first; break;
+          case 2: t2Approaching = stop.keys.first; break;
+          default: t1Approaching = 'Error in updateCurrentStop'; t2Approaching = 'Error in updateCurrentStop';
+        }
+      });
+      break;
+    }
   }
 }
+
+
+// void updateXShuttleStop(String currentStop, int trackerNum) async {
+//   log('updateXStop: $currentStop, $trackerNum');
+//   int currentIndex = shuttleStops.indexOf(currentStop);
+//   if (currentIndex == -1) {
+//     xShuttleStop = ''; // Reset the xShuttleStop if currentStop is not found
+//   }
+
+//   int nextIndex = currentIndex + 1;
+//   if (nextIndex >= shuttleStops.length) {
+//     nextIndex = 0;// Reset the xShuttleStop if currentStop is the last stop
+//   }
+
+//   String nextStop = shuttleStops[nextIndex];
+//   xShuttleStop = nextStop;
+//   switch(trackerNum){
+//     case 1: setState(() {
+//       t1Approaching = xShuttleStop;
+//     }); break;
+//     case 2: setState(() {
+//       t2Approaching = xShuttleStop;
+//     }); break;
+//     default: setState(() {t1Approaching = 'Error in getStops()'; t2Approaching = 'Error in getStops()';});
+//   }
+// }
 
 
   @override
@@ -88,8 +130,10 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
       setState(() {
         t1Eta = math.max(0, int.parse(t1Eta!) - 1).toString();  
         t2Eta = math.max(0, int.parse(t2Eta!) -1).toString();
-        updateXShuttleStop('Gateway Hall Stop', 1);
-        updateXShuttleStop('Lodge Stop', 2);
+        updateCurrentStop(t1Coords!, shuttleStops, 1);
+        updateCurrentStop(t2Coords!, shuttleStops, 2);
+        // updateXShuttleStop('Gateway Hall Stop', 1);
+        // updateXShuttleStop('Lodge Stop', 2);
             });
 
        //fetch new ETA values every 30 seconds
@@ -139,7 +183,7 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
                               'Failed to load MapBox Access Token'),
                       key: const ValueKey("mapWidget"),
                       cameraOptions: CameraOptions(
-                          center: t2Coords!.toJson(), zoom: 14, bearing: 300
+                          center: t1Coords!.toJson(), zoom: 14, bearing: 300
                           ),
                       onMapCreated: _onMapCreated,
                     );
@@ -377,6 +421,7 @@ Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints])
         if (trackerNumber == 1) {
           setState(() {
             tracker1 = value;
+            log('tracker1 set to ${tracker1!.geometry}');
           });
         } else if (trackerNumber == 2) {
           setState(() {
@@ -387,8 +432,18 @@ Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints])
     } else {
       Point.fromJson((tracker.geometry)!.cast());
       var newPoint = point.toJson();
-      tracker.geometry = newPoint;
-      pointAnnotationManager?.update(tracker);
+      if(trackerNumber == 1){
+        setState(() {
+          tracker1!.geometry = newPoint;
+          pointAnnotationManager?.update(tracker1!);
+        });
+      } else if (trackerNumber == 2){
+        tracker2!.geometry = newPoint;
+        pointAnnotationManager?.update(tracker2!);
+      }
+      // tracker.geometry = newPoint;
+      // log('tracker created at ${}')
+      // pointAnnotationManager?.update(tracker);
     }
   }
   
