@@ -80,7 +80,6 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
       getETA(t2Coords!, t1Coords!).then((value) => t2Eta = value);
     });
 
-
     //update displayed values every second
     Timer.periodic(const Duration(seconds: 1), (timer) {
       fetchData().then(((value) {
@@ -89,6 +88,8 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
       setState(() {
         t1Eta = math.max(0, int.parse(t1Eta!) - 1).toString();  
         t2Eta = math.max(0, int.parse(t2Eta!) -1).toString();
+        updateXShuttleStop('Gateway Hall Stop', 1);
+        updateXShuttleStop('Lodge Stop', 2);
             });
 
        //fetch new ETA values every 30 seconds
@@ -100,8 +101,6 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
        }
      });
   }
-
-  
 
 
   @override
@@ -140,7 +139,8 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
                               'Failed to load MapBox Access Token'),
                       key: const ValueKey("mapWidget"),
                       cameraOptions: CameraOptions(
-                          center: t2Coords!.toJson(), zoom: 14),
+                          center: t2Coords!.toJson(), zoom: 14, bearing: 300
+                          ),
                       onMapCreated: _onMapCreated,
                     );
                   } else {
@@ -248,10 +248,15 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
 
   Future<Position> getUserLocation() async {
     var permission = await geo.Geolocator.checkPermission();
+    geo.Position position = await geo.Geolocator.getCurrentPosition(
+        desiredAccuracy: geo.LocationAccuracy.high
+    );
+    userCoords = Point(coordinates: Position(position.latitude, position.longitude));
+      
     if (permission == geo.LocationPermission.denied) {
       permission = await geo.Geolocator.requestPermission();
       if (permission == geo.LocationPermission.denied) {
-        return Future.error('Location permissions are denied');
+        getUserLocation();
       }
     }
     if (permission == geo.LocationPermission.deniedForever) {
@@ -260,6 +265,7 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
     } else {
       return Future.error('A problem occurred.');
     }
+    
   }
 
 
@@ -268,13 +274,13 @@ void updateXShuttleStop(String currentStop, int trackerNum) async {
   final lng = double.parse(tracker1Value.split(',')[0]);
   final lat = double.parse(tracker1Value.split(',')[1]);
   final tracker1Point = Point(coordinates: Position(lat, lng));
-  log('tracker1Point: ${tracker1Point.toJson()}');
+  // log('tracker1Point: ${tracker1Point.toJson()}');
 
   final tracker2Value = jsonResponse['tracker2']['value'].toString();
   final t2lng = double.parse(tracker2Value.split(',')[0]);
   final t2lat = double.parse(tracker2Value.split(',')[1]);
   final tracker2Point = Point(coordinates: Position(t2lat, t2lng));
-  log('tracker2Point: ${tracker2Point.toJson()}');
+  // log('tracker2Point: ${tracker2Point.toJson()}');
     setState(() {
       t1Coords = tracker1Point;
       t2Coords = tracker2Point;
@@ -389,16 +395,8 @@ Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints])
 
   _onMapCreated(MapboxMap mapboxMap) {
     this.mapboxMap = mapboxMap;
-    this.mapboxMap!.gestures.updateSettings(GesturesSettings(rotateEnabled: false, doubleTapToZoomInEnabled: false, pinchToZoomEnabled: false,));
+    this.mapboxMap!.gestures.updateSettings(GesturesSettings(rotateEnabled: false,  ));
     this.mapboxMap!.location.updateSettings(LocationComponentSettings(enabled: true)); // show current position
-    // CameraBounds bounds = CameraBounds(bounds: CoordinateBounds(southwest: Point(coordinates: Position(38.86, -104.76)).toJson(), northeast: Point(coordinates: Position(38.91, -104.83)).toJson(), infiniteBounds: false), maxZoom: 15, minZoom: 3, maxPitch: 360, minPitch: 0);
-    // this.mapboxMap!.gestures.getSettings().then((value) => {
-      // GesturesSettings(pinchToZoomEnabled: false, quickZoomEnabled: false, doubleTapToZoomInEnabled: false, rotateEnabled: false),
-      // value.doubleTapToZoomInEnabled = false,
-      // value.pinchToZoomEnabled = false
-      // }
-      // );
-      
       this.mapboxMap!.setBounds(
         CameraBoundsOptions(bounds: CoordinateBounds
         (southwest: Point(coordinates: Position(38.885950899335185, -104.82192257233655)).toJson(), 
