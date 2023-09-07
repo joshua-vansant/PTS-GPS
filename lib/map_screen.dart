@@ -44,17 +44,46 @@ class _MapScreenState extends State<MapScreen> {
 
   List<Map<String, Point>> shuttleStops = [
   {
-    'Gateway Hall Stop': Point(coordinates: Position(38.89186724000255, -104.80296157732812)),
+    'Gateway Hall Stop': Point(coordinates: Position(-104.80296157732812, 38.89186724000255)),
   },
   {
-    'Centennial Stop': Point(coordinates: Position(38.891729971857785, -104.79906405070052)),
+    'Centennial Stop': Point(coordinates: Position(-104.79906405070052, 38.891729971857785)),
   },
+  {
+    'University Hall Stop': Point(coordinates: Position(-104.78817384564272, 38.889471922347234)),
+  },
+  {
+    'ROTC Stop': Point(coordinates: Position(-104.81458260704491, 38.90249651010308)),
+  },
+  {
+    'Lodge Stop': Point(coordinates: Position(-104.81464673627568, 38.91512778864399)),
+  },
+  
   // Add more stops as needed
 ];
 
+String getNextKey(String currentKey, List<Map<String, Point>> shuttleStops) {
+  int currentIndex = -1;
+  
+  // Find the index of the current key
+  for (int i = 0; i < shuttleStops.length; i++) {
+    if (shuttleStops[i].containsKey(currentKey)) {
+      currentIndex = i;
+      break;
+    }
+  }
+  
+  // Retrieve the next key
+  if (currentIndex != -1) {
+    int nextIndex = (currentIndex + 1) % shuttleStops.length;
+    return shuttleStops[nextIndex].keys.first;
+  }
+  
+  return ''; // Next key not found
+}
 
 void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops, int trakcerNum) async {
-  log('updating current stop from ${userLocation.toJson()} for tracker$trakcerNum');
+  // log('updating current stop from ${userLocation.toJson()} for tracker$trakcerNum');
   const double maxDistanceFeet = 300.0;
   const double metersPerFoot = 0.3048;
   double maxDistanceMeters = maxDistanceFeet * metersPerFoot;
@@ -68,13 +97,15 @@ void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops,
       stopCoords.coordinates.lat as double,
       stopCoords.coordinates.lng as double,
     );
-    log('distance from tracker$trakcerNum: ${userLocation.toJson()} to ${stop.values.first.toJson()} is: $distance');
+    // log('distance from tracker$trakcerNum: ${userLocation.coordinates.toJson()} to ${stop.values.first.coordinates.toJson()} is: $distance meters.');
     if (distance <= maxDistanceMeters) {
-      log('found a distance less than maxDistance! UPDATING T1APPROACHING');
+      // log('found a distance less than maxDistance! UPDATING T1APPROACHING');
       setState(() {
         switch(trakcerNum){
-          case 1: t1Approaching = stop.keys.first; break;
-          case 2: t2Approaching = stop.keys.first; break;
+          case 1: t1Approaching = 'Next Stop => ${getNextKey(stop.keys.first, shuttleStops)}';
+          case 2: t2Approaching = 'Next Stop => ${getNextKey(stop.keys.first, shuttleStops)}';
+          // case 1: t1Approaching = stop.keys.first; break;
+          // case 2: t2Approaching = stop.keys.first; break;
           default: t1Approaching = 'Error in updateCurrentStop'; t2Approaching = 'Error in updateCurrentStop';
         }
       });
@@ -295,7 +326,7 @@ void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops,
     geo.Position position = await geo.Geolocator.getCurrentPosition(
         desiredAccuracy: geo.LocationAccuracy.high
     );
-    userCoords = Point(coordinates: Position(position.latitude, position.longitude));
+    userCoords = Point(coordinates: Position(position.longitude, position.latitude));
       
     if (permission == geo.LocationPermission.denied) {
       permission = await geo.Geolocator.requestPermission();
@@ -315,15 +346,15 @@ void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops,
 
   void getTrackers(Map<String, dynamic> jsonResponse) {
   final tracker1Value = jsonResponse['tracker1']['value'].toString();
-  final lng = double.parse(tracker1Value.split(',')[0]);
-  final lat = double.parse(tracker1Value.split(',')[1]);
-  final tracker1Point = Point(coordinates: Position(lat, lng));
+  final lat = double.parse(tracker1Value.split(',')[0]);
+  final lng = double.parse(tracker1Value.split(',')[1]);
+  final tracker1Point = Point(coordinates: Position(lng, lat));
   // log('tracker1Point: ${tracker1Point.toJson()}');
 
   final tracker2Value = jsonResponse['tracker2']['value'].toString();
-  final t2lng = double.parse(tracker2Value.split(',')[0]);
-  final t2lat = double.parse(tracker2Value.split(',')[1]);
-  final tracker2Point = Point(coordinates: Position(t2lat, t2lng));
+  final t2lat = double.parse(tracker2Value.split(',')[0]);
+  final t2lng = double.parse(tracker2Value.split(',')[1]);
+  final tracker2Point = Point(coordinates: Position(t2lng, t2lat));
   // log('tracker2Point: ${tracker2Point.toJson()}');
     setState(() {
       t1Coords = tracker1Point;
@@ -426,12 +457,15 @@ Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints])
         } else if (trackerNumber == 2) {
           setState(() {
             tracker2 = value;
+            log('tracker2 set to ${tracker2!.geometry}');
           });
         }
       });
     } else {
+      log('trying to update a marker');
       Point.fromJson((tracker.geometry)!.cast());
-      var newPoint = point.toJson();
+      var newPoint = Point(coordinates: Position(point.coordinates.lng, point.coordinates.lat)).toJson();
+      
       if(trackerNumber == 1){
         setState(() {
           tracker1!.geometry = newPoint;
@@ -452,14 +486,14 @@ Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints])
     this.mapboxMap = mapboxMap;
     this.mapboxMap!.gestures.updateSettings(GesturesSettings(rotateEnabled: false,  ));
     this.mapboxMap!.location.updateSettings(LocationComponentSettings(enabled: true)); // show current position
-      this.mapboxMap!.setBounds(
-        CameraBoundsOptions(bounds: CoordinateBounds
-        (southwest: Point(coordinates: Position(38.885950899335185, -104.82192257233655)).toJson(), 
-        northeast:  Point(coordinates: Position(38.913727655885715, -104.77512700039927)).toJson(), 
-        infiniteBounds: false,)
-        , minZoom: 10
-        , maxZoom: 20
-        ));
+      // this.mapboxMap!.setBounds(
+      //   CameraBoundsOptions(bounds: CoordinateBounds
+      //   (southwest: Point(coordinates: Position(-104.82192257233655, 38.885950899335185)).toJson(), 
+      //   northeast:  Point(coordinates: Position(-104.77512700039927, 38.913727655885715 )).toJson(), 
+      //   infiniteBounds: false,)
+      //   , minZoom: 10
+      //   , maxZoom: 20
+      //   ));
       mapboxMap.annotations.createPointAnnotationManager().then((value) async {
       pointAnnotationManager = value;
     });
