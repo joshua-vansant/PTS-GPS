@@ -11,6 +11,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'dart:math' as math;
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
+// import 'package:flutter/foundation.dart' show TargetPlatform;
 
 
 
@@ -61,6 +63,7 @@ class _MapScreenState extends State<MapScreen> {
   
   // Add more stops as needed
 ];
+
 
 String getNextKey(String currentKey, List<Map<String, Point>> shuttleStops) {
   int currentIndex = -1;
@@ -115,6 +118,38 @@ void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops,
 }
 
 
+String getClosestStop(Point point, List<Map<String, Point>> shuttleStops) {
+  double minDistance = double.infinity;
+  String closestStop = '';
+
+  for (Map<String, Point> stop in shuttleStops) {
+    Point stopCoords = stop.values.first;
+    double distance = geolocatorPlatform.distanceBetween(
+      point.coordinates.lat as double,
+      point.coordinates.lng as double,
+      stopCoords.coordinates.lat as double,
+      stopCoords.coordinates.lng as double,
+    );
+    if (distance < minDistance) {
+      minDistance = distance;
+      closestStop = stop.keys.first;
+    }
+  }
+
+  return closestStop;
+}
+
+  Point getValueByKey(String key, List<Map<String, Point>> list) {
+  Map<String, Point> map = list.firstWhere((map) => map.containsKey(key), orElse: () => shuttleStops[4]);
+  if (map != null) {
+    // log('map key: ${map[key]!.toString()}');
+    Point value = Point(coordinates: Position(map[key]!.coordinates.lng, map[key]!.coordinates.lat));
+    log('getValueByKey returning: ${value.coordinates.toJson()}');
+    return value;
+  }
+  return Point(coordinates: Position(0, 0)); // Key not found
+}
+
 // void updateXShuttleStop(String currentStop, int trackerNum) async {
 //   log('updateXStop: $currentStop, $trackerNum');
 //   int currentIndex = shuttleStops.indexOf(currentStop);
@@ -140,6 +175,49 @@ void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops,
 //   }
 // }
 
+void _showPopup(String eta, String destination) {
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: Text(destination),
+        content: Text('$eta seconds'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              // Handle button press
+              Navigator.of(context).pop();
+            },
+            child: Text('Close'),
+          ),
+          TextButton(onPressed: () {
+            String stop = getClosestStop(userCoords!, shuttleStops);
+            Point stopLoc = getValueByKey(stop, shuttleStops);
+            // _launchMaps(getClosestStop(userCoords!, shuttleStops));
+            String lat = stopLoc.coordinates.lat.toString();
+            String lng = stopLoc.coordinates.lng.toString();
+            _launchMaps(lat, lng);
+          },
+          child: Text('Get Directions'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+void _launchMaps(String lat, String lng) async {
+  String googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+  String appleMapsUrl = 'https://maps.apple.com/?q=$lat,$lng';
+  String url = Theme.of(context).platform == TargetPlatform.iOS ? appleMapsUrl : googleMapsUrl;
+  if (await canLaunchUrl(Uri.parse(url))) {
+    await launchUrl(Uri.parse(url));
+  } else {
+    throw 'Could not launch $url';
+  }
+}
+
+
 
   @override
   void initState() {
@@ -149,8 +227,8 @@ void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops,
     //fetch initial ETA values
     fetchData().then((value) {
       getTrackers(value);
-      getETA(t1Coords!, t2Coords!).then((value) => t1Eta = value);
-      getETA(t2Coords!, t1Coords!).then((value) => t2Eta = value);
+      getETA(t1Coords!, t2Coords!, TravelMode.driving).then((value) => t1Eta = value);
+      getETA(t2Coords!, t1Coords!, TravelMode.driving).then((value) => t2Eta = value);
     });
 
     //update displayed values every second
@@ -170,8 +248,8 @@ void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops,
        //fetch new ETA values every 30 seconds
        if(timer.tick %30 == 0) {
         fetchData().then((_) => {
-          getETA(t1Coords!, t2Coords!).then((value) => t1Eta = value),
-          getETA(t2Coords!, t1Coords!).then((value) => t2Eta = value)
+          getETA(t1Coords!, t2Coords!, TravelMode.driving).then((value) => t1Eta = value),
+          getETA(t2Coords!, t1Coords!, TravelMode.driving).then((value) => t2Eta = value)
         });
        }
      });
@@ -195,7 +273,8 @@ void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops,
           centerTitle: true,
         ),
       backgroundColor: Colors.black,
-      body: Column(
+      body: Stack(
+        children:[Column(
         children: [
           Expanded(
             child: StreamBuilder<Point>(
@@ -217,22 +296,51 @@ void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops,
                           center: t1Coords!.toJson(), zoom: 14, bearing: 300
                           ),
                       onMapCreated: _onMapCreated,
+                      
                     );
                   } else {
                     return const Center(child: Text('No data available'));
                   }
                 }),
           ), 
-        Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: RichText(
-          text: TextSpan(
-            text: focusETA ?? '',
-          ),
-        ),
-      ),
+      //   Padding(
+      //   padding: const EdgeInsets.all(16.0),
+      //   child: RichText(
+      //     text: TextSpan(
+      //       text: focusETA ?? '',
+      //     ),
+      //   ),
+      // ),
       ],
-      ),
+      )
+      , Positioned(
+      left: 0,
+      right: 0,
+      bottom: 16.0,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: ElevatedButton(
+          onPressed: () {
+            // Get user location, show nearest shuttle stop & when the next bus arrives
+            // log('Getting closest stop: ${getClosestStop(userCoords!, shuttleStops)}');
+            String closestStop = getClosestStop(userCoords!, shuttleStops);
+            log('closestStop in onPressed $closestStop');
+            // String destinationString = getValueByKey(closestStop, shuttleStops);
+            Point destination = getValueByKey(closestStop, shuttleStops);//Point(coordinates: Position(destinationString.split(',')[1] as num, destinationString.split(',')[0] as num));
+            log('destination in onPressed ${destination.coordinates.toString()}');
+            String eta = 'test';
+            _centerCameraOnLocation(userCoords!);
+            getETA(userCoords!, destination, TravelMode.walking).then((value) { 
+              eta = value;
+               log('eta= $eta');
+              _showPopup(eta, closestStop);
+               });
+          },
+          child: Text('Find Nearest Shuttle'),
+        ),
+        )
+        ),]
+        ),
     drawer: 
       Drawer(backgroundColor: Colors.black,
         child: ListView(
@@ -385,10 +493,10 @@ void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops,
     }
   }
 
-Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints]) async {
+Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [List<Point>? waypoints]) async {
   final originStr = '${origin.coordinates.lat}, ${origin.coordinates.lng}';
   final destinationStr = '${destination.coordinates.lat}, ${destination.coordinates.lng}';
-
+  log('getETA origin: $originStr, destination: $destinationStr, travelMode: $travelMode');
   final cacheKey = '$originStr-$destinationStr';
 
   final fileStream = cacheManager.getFileFromCache(cacheKey);
@@ -404,7 +512,7 @@ Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints])
       final request = DirectionsRequest(
         origin: originStr,
         destination: destinationStr,
-        travelMode: TravelMode.driving,
+        travelMode: travelMode,
         waypoints: waypoints?.map((waypoint) => DirectionsWaypoint(
           location: '${waypoint.coordinates.lat}, ${waypoint.coordinates.lng}',
         )).toList(),
@@ -420,6 +528,7 @@ Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints])
           final file = await cacheManager.putFile(cacheKey, Uint8List.fromList(eta.codeUnits));
           completer.complete(eta);
         } else {
+          log('error in getETA');
           completer.complete('Error: $status');
         }
       });
@@ -462,7 +571,7 @@ Future<String> getETA(Point origin, Point destination, [List<Point>? waypoints])
         }
       });
     } else {
-      log('trying to update a marker');
+      // log('trying to update a marker');
       Point.fromJson((tracker.geometry)!.cast());
       var newPoint = Point(coordinates: Position(point.coordinates.lng, point.coordinates.lat)).toJson();
       
