@@ -196,6 +196,7 @@ void _showPopup(String eta, String destination) {
             // _launchMaps(getClosestStop(userCoords!, shuttleStops));
             String lat = stopLoc.coordinates.lat.toString();
             String lng = stopLoc.coordinates.lng.toString();
+            log('launching Maps');
             _launchMaps(lat, lng);
           },
           child: Text('Get Directions'),
@@ -208,14 +209,20 @@ void _showPopup(String eta, String destination) {
 
 void _launchMaps(String lat, String lng) async {
   String googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+  log('google URL= $googleMapsUrl');
   String appleMapsUrl = 'https://maps.apple.com/?q=$lat,$lng';
+  log('apple url = $appleMapsUrl');
   String url = Theme.of(context).platform == TargetPlatform.iOS ? appleMapsUrl : googleMapsUrl;
+  log('url= $url');
+  log('${await canLaunchUrl(Uri.parse(url))}');
   if (await canLaunchUrl(Uri.parse(url))) {
+    log('trying to launch URL');
     await launchUrl(Uri.parse(url));
   } else {
     throw 'Could not launch $url';
   }
 }
+
 
 
 
@@ -241,8 +248,6 @@ void _launchMaps(String lat, String lng) async {
         t2Eta = math.max(0, int.parse(t2Eta!) -1).toString();
         updateCurrentStop(t1Coords!, shuttleStops, 1);
         updateCurrentStop(t2Coords!, shuttleStops, 2);
-        // updateXShuttleStop('Gateway Hall Stop', 1);
-        // updateXShuttleStop('Lodge Stop', 2);
             });
 
        //fetch new ETA values every 30 seconds
@@ -482,11 +487,6 @@ void _launchMaps(String lat, String lng) async {
 
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(response.body);
-      // getTracker(jsonResponse, 1);
-      // createMarker(t1Coords!, 'assets/shuttle_marker.png', 1);
-      // getTracker(jsonResponse, 2);
-      // createMarker(t2Coords!, 'assets/shuttle_marker.png', 2);
-      // getUserLocation();
       return jsonResponse;
     } else {
       throw Exception('Failed to load data');
@@ -589,7 +589,36 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
       // pointAnnotationManager?.update(tracker);
     }
   }
+    Future<Uint8List> getImageBytes(String imagePath) async {
+    final ByteData bytes = await rootBundle.load(imagePath);
+    return bytes.buffer.asUint8List();
+  }
   
+    void addShuttleStopsToMap() async {
+  if (pointAnnotationManager == null) {
+    log('pointAnnotationManger is null');
+    return;
+  }
+  log('shuttle stops $shuttleStops');
+
+  for (final stop in shuttleStops) {
+    final name = stop.keys.first;
+    final point = stop.values.first;
+    final imageBytes = await getImageBytes('assets/bus_1.png');
+    log('creating a shuttle stop marker');
+    pointAnnotationManager?.create(PointAnnotationOptions(
+      textField: name,
+      textOffset: [0, -1.5],
+      geometry: point.toJson(),
+      iconSize: 1,
+      symbolSortKey: 10,
+      image: imageBytes,
+    ));
+  }
+}
+
+
+
 
   _onMapCreated(MapboxMap mapboxMap) {
     this.mapboxMap = mapboxMap;
@@ -605,6 +634,7 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
       //   ));
       mapboxMap.annotations.createPointAnnotationManager().then((value) async {
       pointAnnotationManager = value;
+      addShuttleStopsToMap();
     });
     
   }
