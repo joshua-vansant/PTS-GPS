@@ -35,15 +35,6 @@ class _MapScreenState extends State<MapScreen> {
   final cacheManager = DefaultCacheManager();
   geo.GeolocatorPlatform geolocatorPlatform = geo.GeolocatorPlatform.instance;
 
-  String xShuttleStop = ''; // Initialize the xShuttleStop variable
-  // List<String> shuttleStops = [
-  //   'Gateway Hall Stop',
-  //   'Centennial Stop',
-  //   'University Hall Stop',
-  //   'ROTC Stop',
-  //   'Lodge Stop'
-  // ]; // Define the shuttle stops in order
-
   List<Map<String, Point>> shuttleStops = [
   {
     'Gateway Hall Stop': Point(coordinates: Position(-104.80296157732812, 38.89186724000255)),
@@ -150,30 +141,6 @@ String getClosestStop(Point point, List<Map<String, Point>> shuttleStops) {
   return Point(coordinates: Position(0, 0)); // Key not found
 }
 
-// void updateXShuttleStop(String currentStop, int trackerNum) async {
-//   log('updateXStop: $currentStop, $trackerNum');
-//   int currentIndex = shuttleStops.indexOf(currentStop);
-//   if (currentIndex == -1) {
-//     xShuttleStop = ''; // Reset the xShuttleStop if currentStop is not found
-//   }
-
-//   int nextIndex = currentIndex + 1;
-//   if (nextIndex >= shuttleStops.length) {
-//     nextIndex = 0;// Reset the xShuttleStop if currentStop is the last stop
-//   }
-
-//   String nextStop = shuttleStops[nextIndex];
-//   xShuttleStop = nextStop;
-//   switch(trackerNum){
-//     case 1: setState(() {
-//       t1Approaching = xShuttleStop;
-//     }); break;
-//     case 2: setState(() {
-//       t2Approaching = xShuttleStop;
-//     }); break;
-//     default: setState(() {t1Approaching = 'Error in getStops()'; t2Approaching = 'Error in getStops()';});
-//   }
-// }
 
 void _showPopup(String eta, String destination) {
   showDialog(
@@ -224,8 +191,6 @@ void _launchMaps(String lat, String lng) async {
 }
 
 
-
-
   @override
   void initState() {
     super.initState();
@@ -270,163 +235,91 @@ void _launchMaps(String lat, String lng) async {
 
   @override
   Widget build(BuildContext context) {
-    return ScaffoldMessenger(
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('UCCS Shuttle Tracker'),
-          backgroundColor: Colors.black, 
-          centerTitle: true,
-        ),
-      backgroundColor: Colors.black,
-      body: Stack(
-        children:[Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<Point>(
-                stream: _tracker1Stream.stream,
-                initialData: t1Coords,
-                builder: (BuildContext context, AsyncSnapshot<Point> snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
-                  } else if (snapshot.hasData) {
-                    t1Coords = snapshot.data;
-                    return MapWidget(
-                      resourceOptions: ResourceOptions(
-                          accessToken: dotenv.env['MAPBOX_PUBLIC_ACCESS_TOKEN'] ??
-                              'Failed to load MapBox Access Token'),
-                      key: const ValueKey("mapWidget"),
-                      cameraOptions: CameraOptions(
-                          center: t1Coords!.toJson(), zoom: 14, bearing: 300
-                          ),
-                      onMapCreated: _onMapCreated,
-                      
-                    );
-                  } else {
-                    return const Center(child: Text('No data available'));
-                  }
-                }),
-          ), 
-      //   Padding(
-      //   padding: const EdgeInsets.all(16.0),
-      //   child: RichText(
-      //     text: TextSpan(
-      //       text: focusETA ?? '',
-      //     ),
-      //   ),
-      // ),
-      ],
-      )
-      , Positioned(
-      left: 0,
-      right: 0,
-      bottom: 16.0,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: ElevatedButton(
-          onPressed: () {
-            // Get user location, show nearest shuttle stop & when the next bus arrives
-            // log('Getting closest stop: ${getClosestStop(userCoords!, shuttleStops)}');
-            String closestStop = getClosestStop(userCoords!, shuttleStops);
-            log('closestStop in onPressed $closestStop');
-            // String destinationString = getValueByKey(closestStop, shuttleStops);
-            Point destination = getValueByKey(closestStop, shuttleStops);//Point(coordinates: Position(destinationString.split(',')[1] as num, destinationString.split(',')[0] as num));
-            log('destination in onPressed ${destination.coordinates.toString()}');
-            String eta = 'test';
-            _centerCameraOnLocation(userCoords!);
-            getETA(userCoords!, destination, TravelMode.walking).then((value) { 
-              eta = value;
-               log('eta= $eta');
-              _showPopup(eta, closestStop);
-               });
-          },
-          child: Text('Find Nearest Shuttle'),
-        ),
-        )
-        ),]
-        ),
-    drawer: 
-      Drawer(backgroundColor: Colors.black,
-        child: ListView(
-        padding: const EdgeInsets.fromLTRB(0.0, 35.0, 5.0, 0.0),
-        children: [
-          ListTile(
-            title: RichText(
-                text: TextSpan(
-                    text: 'Shuttle 1:\n',
-                    style: const TextStyle(
-                        fontSize: 21.0,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        backgroundColor: Colors.black),
-                    children: <TextSpan>[
-                   TextSpan(
-                      text: '$t1Approaching\t|\t',
-                      style: TextStyle(
-                          fontSize: 15.0,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold)),
-                    TextSpan(
-                            text: '$t1Eta seconds',
-                            style: const TextStyle(
-                              fontSize: 17.0,
-                              color: Colors.green,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                ]
-                )
-                ),
-                onTap: () => {
-                  _centerCameraOnLocation(t1Coords!),
-                  focusETA = 'Calculating ETA...',
-                  setState(() {
-                    focusETA = t1Eta;
-                  }),
-                  Navigator.pop(context)
+    var size = MediaQuery.of(context).size;
 
-                }
+    final double itemHeight = (size.height - kToolbarHeight - 24);
+    final double itemWidth = size.width/2;
+
+        return Column(
+      children: [
+        Expanded(
+          flex: 3,
+          child: MapWidget(
+            resourceOptions: ResourceOptions(
+                accessToken:
+                    'pk.eyJ1IjoianZhbnNhbnRwdHMiLCJhIjoiY2w1YnI3ejNhMGFhdzNpbXA5MWExY3FqdiJ9.SNsWghIteFZD7DTuI4_FmA'),
+            cameraOptions: CameraOptions(
+                center: Point(coordinates: Position(-104.79610715806722, 38.89094045460431)).toJson(),
+                zoom: 15,
+                pitch: 70,
+                bearing: 300),
+            onMapCreated: _onMapCreated,
           ),
-          ListTile(
-            title: RichText(
-                text: TextSpan(
-                    text: 'Shuttle 2:\n',
-                    style: const TextStyle(
-                        fontSize: 21.0,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        backgroundColor: Colors.black),
-                    children: <TextSpan>[
-                   TextSpan(
-                      text: '$t2Approaching\t|\t',
-                      style: TextStyle(
-                          fontSize: 15.0,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold)),
-                  TextSpan(
-                      text: '$t2Eta seconds',
-                      style: const TextStyle(
-                          fontSize: 17.0,
-                          color: Colors.green,
-                          fontWeight: FontWeight.bold))
-                ]
-                )
+        ),
+        SizedBox(
+          height: 75,
+          child: 
+            GridView.count(padding: EdgeInsets.all(0),
+            shrinkWrap: true,
+            childAspectRatio: (itemHeight/itemWidth),
+            crossAxisCount: 3,
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                  // Click event for button 1
+                  log('button pressed');
+                },
+                style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(Colors.amber),),
+                child: const Text(
+                  'Gateway Hall Stop',
+                  textAlign: TextAlign.center,
                 ),
-                onTap: () => {
-                  _centerCameraOnLocation(t2Coords!),
-                  focusETA = 'Calculating ETA...',
-                  setState(() {
-                    focusETA = t2Eta;
-                  }),
-                  Navigator.pop(context)
-                }
- )
-        ],
-      ),
-      )
-    ));
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // Click event for button 2
+                  log('button pressed');
+                },
+                style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(Colors.green)),
+                child: const Text(textAlign: TextAlign.center, 'Centennial Stop'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // Click event for button 1
+                  log('button pressed');
+                },
+                child: const Text(textAlign: TextAlign.center, 'University Hall Stop'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // Click event for button 2
+                  log('button pressed');
+                },
+                child: const Text(textAlign: TextAlign.center, 'ROTC Stop'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // Click event for button 2
+                  log('button pressed');
+                },
+                child: const Text(textAlign: TextAlign.center, 'Lodge Stop'),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () {
+              log('button pressed');
+            },
+            child: const Text('Find Closest Shuttle Stop'),
+          ),
+        ),
+      ],
+    );
   }
+  
 
   void _centerCameraOnLocation(Point location) {
   mapboxMap?.setCamera(CameraOptions(center: location.toJson())
