@@ -53,143 +53,126 @@ class _MapScreenState extends State<MapScreen> {
   },
   
   // Add more stops as needed
-];
+  ];
 
 
-String getNextKey(String currentKey, List<Map<String, Point>> shuttleStops) {
-  int currentIndex = -1;
+  String getNextKey(String currentKey, List<Map<String, Point>> shuttleStops) {
+    int currentIndex = -1;
   
-  // Find the index of the current key
-  for (int i = 0; i < shuttleStops.length; i++) {
-    if (shuttleStops[i].containsKey(currentKey)) {
-      currentIndex = i;
-      break;
+    // Find the index of the current key
+    for (int i = 0; i < shuttleStops.length; i++) {
+      if (shuttleStops[i].containsKey(currentKey)) {
+        currentIndex = i;
+        break;
+      }
+    }
+    
+    // Retrieve the next key
+    if (currentIndex != -1) {
+      int nextIndex = (currentIndex + 1) % shuttleStops.length;
+      return shuttleStops[nextIndex].keys.first;
+    }
+    
+    return ''; // Next key not found
+  }
+
+  void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops, int trakcerNum) async {
+    const double maxDistanceFeet = 300.0;
+    const double metersPerFoot = 0.3048;
+    double maxDistanceMeters = maxDistanceFeet * metersPerFoot;
+
+    for (Map<String, Point> stop in shuttleStops) {
+      Point stopCoords = stop.values.first;
+      double distance = geolocatorPlatform.distanceBetween(
+        userLocation.coordinates.lat as double,
+        userLocation.coordinates.lng as double,
+        stopCoords.coordinates.lat as double,
+        stopCoords.coordinates.lng as double,
+      );
+      if (distance <= maxDistanceMeters) {
+        setState(() {
+          switch(trakcerNum){
+            case 1: t1Approaching = 'Next Stop => ${getNextKey(stop.keys.first, shuttleStops)}'; break;
+            case 2: t2Approaching = 'Next Stop => ${getNextKey(stop.keys.first, shuttleStops)}'; break;
+            default: t1Approaching = 'Error in updateCurrentStop'; t2Approaching = 'Error in updateCurrentStop';
+          }
+        });
+      }
     }
   }
-  
-  // Retrieve the next key
-  if (currentIndex != -1) {
-    int nextIndex = (currentIndex + 1) % shuttleStops.length;
-    return shuttleStops[nextIndex].keys.first;
-  }
-  
-  return ''; // Next key not found
-}
 
-void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops, int trakcerNum) async {
-  // log('updating current stop from ${userLocation.toJson()} for tracker$trakcerNum');
-  const double maxDistanceFeet = 300.0;
-  const double metersPerFoot = 0.3048;
-  double maxDistanceMeters = maxDistanceFeet * metersPerFoot;
-  // const double maxDistance = 91.44; // 300 feet in meters
 
-  for (Map<String, Point> stop in shuttleStops) {
-    Point stopCoords = stop.values.first;
-    double distance = geolocatorPlatform.distanceBetween(
-      userLocation.coordinates.lat as double,
-      userLocation.coordinates.lng as double,
-      stopCoords.coordinates.lat as double,
-      stopCoords.coordinates.lng as double,
-    );
-    // log('distance from tracker$trakcerNum: ${userLocation.coordinates.toJson()} to ${stop.values.first.coordinates.toJson()} is: $distance meters.');
-    if (distance <= maxDistanceMeters) {
-      // log('found a distance less than maxDistance! UPDATING T1APPROACHING');
-      setState(() {
-        switch(trakcerNum){
-          case 1: t1Approaching = 'Next Stop => ${getNextKey(stop.keys.first, shuttleStops)}';
-          case 2: t2Approaching = 'Next Stop => ${getNextKey(stop.keys.first, shuttleStops)}';
-          // case 1: t1Approaching = stop.keys.first; break;
-          // case 2: t2Approaching = stop.keys.first; break;
-          default: t1Approaching = 'Error in updateCurrentStop'; t2Approaching = 'Error in updateCurrentStop';
-        }
-      });
-      break;
+  String getClosestStop(Point point) {
+    double minDistance = double.infinity;
+    String closestStop = '';
+
+    for (Map<String, Point> stop in shuttleStops) {
+      Point stopCoords = stop.values.first;
+      double distance = geolocatorPlatform.distanceBetween(
+        point.coordinates.lat as double,
+        point.coordinates.lng as double,
+        stopCoords.coordinates.lat as double,
+        stopCoords.coordinates.lng as double,
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestStop = stop.keys.first;
+      }
     }
+    return closestStop;
   }
-}
-
-
-String getClosestStop(Point point) {
-  log('getting closest stop to ${point.coordinates.toJson()}');
-  double minDistance = double.infinity;
-  String closestStop = '';
-
-  for (Map<String, Point> stop in shuttleStops) {
-    Point stopCoords = stop.values.first;
-    double distance = geolocatorPlatform.distanceBetween(
-      point.coordinates.lat as double,
-      point.coordinates.lng as double,
-      stopCoords.coordinates.lat as double,
-      stopCoords.coordinates.lng as double,
-    );
-    if (distance < minDistance) {
-      minDistance = distance;
-      closestStop = stop.keys.first;
-    }
-  }
-  log('closest stop is $closestStop');
-  return closestStop;
-}
 
   Point getValueByKey(String key) {
-  Map<String, Point> map = shuttleStops.firstWhere((map) => map.containsKey(key), orElse: () => shuttleStops[4]);
-  if (map != null) {
-    // log('map key: ${map[key]!.toString()}');
-    Point value = Point(coordinates: Position(map[key]!.coordinates.lng, map[key]!.coordinates.lat));
-    log('getValueByKey returning: ${value.coordinates.toJson()}');
-    return value;
+    Map<String, Point> map = shuttleStops.firstWhere((map) => map.containsKey(key), orElse: () => shuttleStops[4]);
+    if (map != null) {
+      Point value = Point(coordinates: Position(map[key]!.coordinates.lng, map[key]!.coordinates.lat));
+      log('getValueByKey returning: ${value.coordinates.toJson()}');
+      return value;
+    }
+    return Point(coordinates: Position(0, 0)); // Key not found
   }
-  return Point(coordinates: Position(0, 0)); // Key not found
-}
 
 
-void _showPopup(String eta, String destination) {
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: Text(destination),
-        content: Text('$eta seconds'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              // Handle button press
-              Navigator.of(context).pop();
+  void _showPopup(String eta, String destination) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(destination),
+          content: Text('$eta seconds'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Close'),
+            ),
+            TextButton(onPressed: () {
+              String stop = getClosestStop(userCoords!);
+              Point stopLoc = getValueByKey(stop);
+              String lat = stopLoc.coordinates.lat.toString();
+              String lng = stopLoc.coordinates.lng.toString();
+              _launchMaps(lat, lng);
             },
-            child: Text('Close'),
-          ),
-          TextButton(onPressed: () {
-            String stop = getClosestStop(userCoords!);
-            Point stopLoc = getValueByKey(stop);
-            // _launchMaps(getClosestStop(userCoords!, shuttleStops));
-            String lat = stopLoc.coordinates.lat.toString();
-            String lng = stopLoc.coordinates.lng.toString();
-            log('launching Maps');
-            _launchMaps(lat, lng);
-          },
-          child: Text('Get Directions'),
-          ),
-        ],
-      );
-    },
-  );
-}
-
-void _launchMaps(String lat, String lng) async {
-  String googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
-  log('google URL= $googleMapsUrl');
-  String appleMapsUrl = 'https://maps.apple.com/?q=$lat,$lng';
-  log('apple url = $appleMapsUrl');
-  String url = Theme.of(context).platform == TargetPlatform.iOS ? appleMapsUrl : googleMapsUrl;
-  log('url= $url');
-  log('${await canLaunchUrl(Uri.parse(url))}');
-  if (await canLaunchUrl(Uri.parse(url))) {
-    log('trying to launch URL');
-    await launchUrl(Uri.parse(url));
-  } else {
-    throw 'Could not launch $url';
+            child: const Text('Get Directions'),
+            ),
+          ],
+        );
+      },
+    );
   }
-}
+
+  void _launchMaps(String lat, String lng) async {
+    String googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+    String appleMapsUrl = 'https://maps.apple.com/?q=$lat,$lng';
+    String url = Theme.of(context).platform == TargetPlatform.iOS ? appleMapsUrl : googleMapsUrl;
+    log('${await canLaunchUrl(Uri.parse(url))}');
+    if (await canLaunchUrl(Uri.parse(url))) {
+      await launchUrl(Uri.parse(url));
+    } else {
+      throw 'Could not launch $url';
+    }
+  }
 
 
   @override
@@ -206,46 +189,41 @@ void _launchMaps(String lat, String lng) async {
 
     //update displayed values every second
     Timer.periodic(const Duration(seconds: 1), (timer) {
-      fetchData().then(((value) {
-        getTrackers(value);
-      }));
+      fetchData().then(((value) { getTrackers(value); } ));
       setState(() {
         t1Eta = math.max(0, int.parse(t1Eta!) - 1).toString();  
         t2Eta = math.max(0, int.parse(t2Eta!) -1).toString();
         updateCurrentStop(t1Coords!, shuttleStops, 1);
         updateCurrentStop(t2Coords!, shuttleStops, 2);
-            });
+      });
 
-       //fetch new ETA values every 30 seconds
-       if(timer.tick %30 == 0) {
+      //fetch new ETA values every 30 seconds
+      if(timer.tick %30 == 0) {
         fetchData().then((_) => {
           getETA(t1Coords!, t2Coords!, TravelMode.driving).then((value) => t1Eta = value),
           getETA(t2Coords!, t1Coords!, TravelMode.driving).then((value) => t2Eta = value)
         });
-       }
-     });
+      }
+    });
   }
 
 
-  
-
   void _centerCameraOnLocation(Point location) {
-  mapboxMap?.setCamera(CameraOptions(center: location.toJson())
-  );
-}
+  mapboxMap?.setCamera(CameraOptions( center: location.toJson() ));
+  }
+
   geo.Position getUserCoords(geo.Position position){
-          userCoords = Point(coordinates: Position(position.longitude, position.latitude));
-      // log('usercoords from getUserLoc = ${userCoords!.coordinates.toJson()}');
-      return position;
+    userCoords = Point(coordinates: Position(position.longitude, position.latitude));
+    return position;
   }
 
   Future<void> getUserLocation() async {
     var permission = await geo.Geolocator.checkPermission();
     // log('permission for user location: ${permission.name}');
     if(permission == geo.LocationPermission.whileInUse || permission == geo.LocationPermission.always){
-          geo.Position position = await geo.Geolocator.getCurrentPosition(
-        desiredAccuracy: geo.LocationAccuracy.high
-    );
+      geo.Position position = await geo.Geolocator.getCurrentPosition(
+      desiredAccuracy: geo.LocationAccuracy.high
+      );
       getUserCoords(position);
     }
 
@@ -348,7 +326,6 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
   Future<void> createMarker(Point point, String imagePath, int trackerNumber) async {
     final ByteData bytes = await rootBundle.load(imagePath);
     final Uint8List list = bytes.buffer.asUint8List();
-    // log('image loaded: $list');
     PointAnnotation? tracker;
 
     if (trackerNumber == 1) {
@@ -356,7 +333,6 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
     } else if (trackerNumber == 2) {
       tracker = tracker2;
     }
-
     if (tracker == null) {
       pointAnnotationManager?.create(PointAnnotationOptions(
         textField: 'Shuttle $trackerNumber',
@@ -379,7 +355,6 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
         }
       });
     } else {
-      // log('trying to update a marker');
       Point.fromJson((tracker.geometry)!.cast());
       var newPoint = Point(coordinates: Position(point.coordinates.lng, point.coordinates.lat)).toJson();
       
@@ -392,40 +367,36 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
         tracker2!.geometry = newPoint;
         pointAnnotationManager?.update(tracker2!);
       }
-      // tracker.geometry = newPoint;
-      // log('tracker created at ${}')
-      // pointAnnotationManager?.update(tracker);
     }
   }
-    Future<Uint8List> getImageBytes(String imagePath) async {
+
+  Future<Uint8List> getImageBytes(String imagePath) async {
     final ByteData bytes = await rootBundle.load(imagePath);
     return bytes.buffer.asUint8List();
   }
   
-    void addShuttleStopsToMap() async {
-  if (pointAnnotationManager == null) {
-    log('pointAnnotationManger is null');
-    return;
+  void addShuttleStopsToMap() async {
+    if (pointAnnotationManager == null) {
+      log('pointAnnotationManger is null');
+      return;
+    }
+
+    for (final stop in shuttleStops) {
+      final name = stop.keys.first;
+      final point = stop.values.first;
+      final imageBytes = await getImageBytes('assets/bus_stop_red.png');
+      log('creating a shuttle stop marker');
+      pointAnnotationManager?.create(PointAnnotationOptions(
+        textField: name,
+        textOffset: [0, -1.5],
+        // iconOffset: [0, -5],
+        geometry: point.toJson(),
+        iconSize: .3,
+        symbolSortKey: 10,
+        image: imageBytes,
+      ));
+    }
   }
-
-  for (final stop in shuttleStops) {
-    final name = stop.keys.first;
-    final point = stop.values.first;
-    final imageBytes = await getImageBytes('assets/bus_stop_red.png');
-    log('creating a shuttle stop marker');
-    pointAnnotationManager?.create(PointAnnotationOptions(
-      textField: name,
-      textOffset: [0, -1.5],
-      // iconOffset: [0, -5],
-      geometry: point.toJson(),
-      iconSize: .3,
-      symbolSortKey: 10,
-      image: imageBytes,
-    ));
-  }
-}
-
-
 
 
   _onMapCreated(MapboxMap mapboxMap) {
@@ -445,6 +416,7 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
       addShuttleStopsToMap();
     });
   }
+
    @override
   void dispose() {
     _tracker1Stream.close();
@@ -475,21 +447,23 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
             onMapCreated: _onMapCreated,
           ),
         ),
-        SizedBox(
-          height: 75,
-          child: 
-            GridView.count(padding: EdgeInsets.all(0),
-            shrinkWrap: true,
-            childAspectRatio: (itemHeight/itemWidth),
-            crossAxisCount: 3,
-            children: [
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Wrap(
+              spacing: 5,
+              runSpacing: 5,
+              children: [
               ElevatedButton(
                 onPressed: () {
                   // Click event for button 1
                   log('button pressed');
-                  _centerCameraOnLocation(Point(coordinates: Position(-104.80296157732812, 38.89186724000255)));
+                  Point GHStop = getValueByKey('Gateway Hall Stop');
+                  _centerCameraOnLocation(GHStop);
                 },
-                style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(Colors.amber),),
+                style: const ButtonStyle(
+                  backgroundColor: MaterialStatePropertyAll<Color>(Colors.amber),
+                  foregroundColor: MaterialStatePropertyAll<Color>(Colors.black)),
                 child: const Text(
                   'Gateway Hall Stop',
                   textAlign: TextAlign.center,
@@ -499,6 +473,8 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
                 onPressed: () {
                   // Click event for button 2
                   log('button pressed');
+                  Point centStop = getValueByKey('Centennial Stop');
+                  _centerCameraOnLocation(centStop);
                 },
                 style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(Colors.green)),
                 child: const Text(textAlign: TextAlign.center, 'Centennial Stop'),
@@ -507,13 +483,18 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
                 onPressed: () {
                   // Click event for button 1
                   log('button pressed');
+                  Point uHallStop = getValueByKey('University Hall Stop');
+                  _centerCameraOnLocation(uHallStop);
                 },
+                style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(Colors.orange)),
                 child: const Text(textAlign: TextAlign.center, 'University Hall Stop'),
               ),
               ElevatedButton(
                 onPressed: () {
                   // Click event for button 2
                   log('button pressed');
+                  Point rotcStop = getValueByKey('ROTC Stop');
+                  _centerCameraOnLocation(rotcStop);
                 },
                 child: const Text(textAlign: TextAlign.center, 'ROTC Stop'),
               ),
@@ -521,11 +502,14 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
                 onPressed: () {
                   // Click event for button 2
                   log('button pressed');
+                  Point lodgeStop = getValueByKey('Lodge Stop');
+                  _centerCameraOnLocation(lodgeStop);
                 },
                 child: const Text(textAlign: TextAlign.center, 'Lodge Stop'),
               ),
             ],
           ),
+        ),
         ),
         SizedBox(
           width: double.infinity,
