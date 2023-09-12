@@ -38,7 +38,7 @@ class _MapScreenState extends State<MapScreen> {
   List<Map<String, Point>> shuttleStops = [
   {
     'Gateway Hall Stop': Point(coordinates: Position(-104.80296157732812, 38.89186724000255)),
-  },
+  },  
   {
     'Centennial Stop': Point(coordinates: Position(-104.79906405070052, 38.891729971857785)),
   },
@@ -47,7 +47,7 @@ class _MapScreenState extends State<MapScreen> {
   },
   {
     'ROTC Stop': Point(coordinates: Position(-104.81458260704491, 38.90249651010308)),
-  },
+  },  
   {
     'Lodge Stop': Point(coordinates: Position(-104.81464673627568, 38.91512778864399)),
   },
@@ -132,6 +132,11 @@ class _MapScreenState extends State<MapScreen> {
     return Point(coordinates: Position(0, 0)); // Key not found
   }
 
+  bool isResponseEqual(dynamic response1, dynamic response2) {
+    return response1['tracker1']['value'] == response2['tracker1']['value'] &&
+          response1['tracker2']['value'] == response2['tracker2']['value'];
+  }
+
 
   void _showPopup(String eta, String destination) {
     showDialog(
@@ -179,37 +184,53 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     getUserLocation();
+    
+    dynamic previousResponse;
 
-    //fetch initial ETA values
-    fetchData().then((value) {
-      getTrackers(value);
-      getETA(t1Coords!, t2Coords!, TravelMode.driving).then((value) => t1Eta = value);
-      getETA(t2Coords!, t1Coords!, TravelMode.driving).then((value) => t2Eta = value);
-    });
-
-    //update displayed values every second
     Timer.periodic(const Duration(seconds: 1), (timer) {
-      fetchData().then(((value) { getTrackers(value); } ));
-      setState(() {
-        t1Eta = math.max(0, int.parse(t1Eta!) - 1).toString();  
-        t2Eta = math.max(0, int.parse(t2Eta!) -1).toString();
-        updateCurrentStop(t1Coords!, shuttleStops, 1);
-        updateCurrentStop(t2Coords!, shuttleStops, 2);
-      });
-
-      //fetch new ETA values every 30 seconds
-      if(timer.tick %30 == 0) {
-        fetchData().then((_) => {
-          getETA(t1Coords!, t2Coords!, TravelMode.driving).then((value) => t1Eta = value),
-          getETA(t2Coords!, t1Coords!, TravelMode.driving).then((value) => t2Eta = value)
-        });
+      fetchData().then((value) {
+        // log('fetchdata returned: $value');
+        if(previousResponse == null || !isResponseEqual(previousResponse, value)){
+          log('!isResponseEqual(previousResponse, value)');
+          previousResponse = value;
+          getTrackers(value);
+          createMarker(t1Coords!, 'assets/bus_1.png', 1);
+          createMarker(t2Coords!, 'assets/bus_2.png', 2);
       }
+      },
+      );
     });
+    
+    // //fetch initial ETA values
+    // fetchData().then((value) {
+    //   getTrackers(value);
+    //   getETA(t1Coords!, t2Coords!, TravelMode.driving).then((value) => t1Eta = value);
+    //   getETA(t2Coords!, t1Coords!, TravelMode.driving).then((value) => t2Eta = value);
+    // });
+
+    // //update displayed values every second
+    // Timer.periodic(const Duration(seconds: 1), (timer) {
+    //   fetchData().then(((value) { getTrackers(value); } ));
+    //   setState(() {
+    //     t1Eta = math.max(0, int.parse(t1Eta!) - 1).toString();  
+    //     t2Eta = math.max(0, int.parse(t2Eta!) -1).toString();
+    //     updateCurrentStop(t1Coords!, shuttleStops, 1);
+    //     updateCurrentStop(t2Coords!, shuttleStops, 2);
+    //   });
+
+    //   //fetch new ETA values every 30 seconds
+    //   if(timer.tick %30 == 0) {
+    //     fetchData().then((_) => {
+    //       getETA(t1Coords!, t2Coords!, TravelMode.driving).then((value) => t1Eta = value),
+    //       getETA(t2Coords!, t1Coords!, TravelMode.driving).then((value) => t2Eta = value)
+    //     });
+    //   }
+    // });
   }
 
 
   void _centerCameraOnLocation(Point location) {
-  mapboxMap?.setCamera(CameraOptions( center: location.toJson() ));
+    mapboxMap?.setCamera(CameraOptions( center: location.toJson() ));
   }
 
   geo.Position getUserCoords(geo.Position position){
@@ -244,65 +265,61 @@ class _MapScreenState extends State<MapScreen> {
 
 
   void getTrackers(Map<String, dynamic> jsonResponse) {
-  final tracker1Value = jsonResponse['tracker1']['value'].toString();
-  final lat = double.parse(tracker1Value.split(',')[0]);
-  final lng = double.parse(tracker1Value.split(',')[1]);
-  final tracker1Point = Point(coordinates: Position(lng, lat));
-  // log('tracker1Point: ${tracker1Point.toJson()}');
+    final tracker1Value = jsonResponse['tracker1']['value'].toString();
+    final lat = double.parse(tracker1Value.split(',')[0]);
+    final lng = double.parse(tracker1Value.split(',')[1]);
+    final tracker1Point = Point(coordinates: Position(lng, lat));
 
-  final tracker2Value = jsonResponse['tracker2']['value'].toString();
-  final t2lat = double.parse(tracker2Value.split(',')[0]);
-  final t2lng = double.parse(tracker2Value.split(',')[1]);
-  final tracker2Point = Point(coordinates: Position(t2lng, t2lat));
-  // log('tracker2Point: ${tracker2Point.toJson()}');
+    final tracker2Value = jsonResponse['tracker2']['value'].toString();
+    final t2lat = double.parse(tracker2Value.split(',')[0]);
+    final t2lng = double.parse(tracker2Value.split(',')[1]);
+    final tracker2Point = Point(coordinates: Position(t2lng, t2lat));
     setState(() {
       t1Coords = tracker1Point;
       t2Coords = tracker2Point;
       _tracker1Stream.add(tracker1Point);
       _tracker2Stream.add(tracker2Point);
-      createMarker(t1Coords!, 'assets/bus_1.png', 1);
-      createMarker(t2Coords!, 'assets/bus_2.png', 2);
-          });
-
-}
+      
+    });
+  }
 
 
   Future<dynamic> fetchData() async {
+    // log('fetchData called');
     final response = await http.get(Uri.parse(
         'https://api.init.st/data/v1/events/latest?accessKey=ist_rg6P7BFsuN8Ekew6hKsE5t9QoMEp2KZN&bucketKey=jmvs_pts_tracker'));
 
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(response.body);
+      // log('jsonResponse = $jsonResponse');
       return jsonResponse;
     } else {
       throw Exception('Failed to load data');
     }
   }
 
-Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [List<Point>? waypoints]) async {
-  final originStr = '${origin.coordinates.lat}, ${origin.coordinates.lng}';
-  final destinationStr = '${destination.coordinates.lat}, ${destination.coordinates.lng}';
-  log('getETA origin: $originStr, destination: $destinationStr, travelMode: $travelMode');
-  final cacheKey = '$originStr-$destinationStr';
+  Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [List<Point>? waypoints]) async {
+    final originStr = '${origin.coordinates.lat}, ${origin.coordinates.lng}';
+    final destinationStr = '${destination.coordinates.lat}, ${destination.coordinates.lng}';
+    final cacheKey = '$originStr-$destinationStr';
+    final fileStream = cacheManager.getFileFromCache(cacheKey);
 
-  final fileStream = cacheManager.getFileFromCache(cacheKey);
-  return fileStream.then((fileInfo) async {
-    if (fileInfo != null && await fileInfo.file.exists()) {
-      final file = fileInfo.file;
-      final cachedValue = await file.readAsString();
-      return cachedValue;
-    } else {
-      DirectionsService.init(dotenv.env['DIRECTIONS_API_KEY'] ?? 'Failed to load Directions API Key');
-      final directionsService = DirectionsService();
-
-      final request = DirectionsRequest(
-        origin: originStr,
-        destination: destinationStr,
-        travelMode: travelMode,
-        waypoints: waypoints?.map((waypoint) => DirectionsWaypoint(
-          location: '${waypoint.coordinates.lat}, ${waypoint.coordinates.lng}',
-        )).toList(),
-      );
+    return fileStream.then((fileInfo) async {
+      if (fileInfo != null && await fileInfo.file.exists()) {
+        final file = fileInfo.file;
+        final cachedValue = await file.readAsString();
+        return cachedValue;
+      } else {
+        DirectionsService.init(dotenv.env['DIRECTIONS_API_KEY'] ?? 'Failed to load Directions API Key');
+        final directionsService = DirectionsService();
+        final request = DirectionsRequest(
+          origin: originStr,
+          destination: destinationStr,
+          travelMode: travelMode,
+          waypoints: waypoints?.map((waypoint) => DirectionsWaypoint(
+            location: '${waypoint.coordinates.lat}, ${waypoint.coordinates.lng}',
+          )).toList(),
+        );
 
       final Completer<String> completer = Completer<String>();
 
@@ -319,20 +336,20 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
         }
       });
       return completer.future;
-    }
-  });
-}
+    } } );
+  }
 
   Future<void> createMarker(Point point, String imagePath, int trackerNumber) async {
     final ByteData bytes = await rootBundle.load(imagePath);
     final Uint8List list = bytes.buffer.asUint8List();
     PointAnnotation? tracker;
-
+    log('creating marker for ${point.coordinates.toJson()}');
     if (trackerNumber == 1) {
       tracker = tracker1;
     } else if (trackerNumber == 2) {
       tracker = tracker2;
     }
+
     if (tracker == null) {
       pointAnnotationManager?.create(PointAnnotationOptions(
         textField: 'Shuttle $trackerNumber',
@@ -352,21 +369,21 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
             tracker2 = value;
             log('tracker2 set to ${tracker2!.geometry}');
           });
-        }
+          }
       });
     } else {
-      Point.fromJson((tracker.geometry)!.cast());
-      var newPoint = Point(coordinates: Position(point.coordinates.lng, point.coordinates.lat)).toJson();
-      
-      if(trackerNumber == 1){
-        setState(() {
-          tracker1!.geometry = newPoint;
-          pointAnnotationManager?.update(tracker1!);
-        });
-      } else if (trackerNumber == 2){
-        tracker2!.geometry = newPoint;
-        pointAnnotationManager?.update(tracker2!);
-      }
+        Point.fromJson((tracker.geometry)!.cast());
+        var newPoint = Point(coordinates: Position(point.coordinates.lng, point.coordinates.lat)).toJson();
+        
+        if(trackerNumber == 1){
+          setState(() {
+            tracker1!.geometry = newPoint;
+            pointAnnotationManager?.update(tracker1!);
+          });
+        } else if (trackerNumber == 2){
+          tracker2!.geometry = newPoint;
+          pointAnnotationManager?.update(tracker2!);
+        }
     }
   }
 
@@ -411,13 +428,13 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
       //   , minZoom: 10
       //   , maxZoom: 20
       //   ));
-      mapboxMap.annotations.createPointAnnotationManager().then((value) async {
+    mapboxMap.annotations.createPointAnnotationManager().then((value) async {
       pointAnnotationManager = value;
       addShuttleStopsToMap();
     });
   }
 
-   @override
+  @override
   void dispose() {
     _tracker1Stream.close();
     _tracker2Stream.close();
@@ -427,89 +444,92 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
   @override
   Widget build(BuildContext context) {
     var size = MediaQuery.of(context).size;
-
     final double itemHeight = (size.height - kToolbarHeight - 24);
     final double itemWidth = size.width/2;
-
-        return Column(
-      children: [
+    return Column(
+      children: [ 
         Expanded(
           flex: 3,
-          child: MapWidget(
-            resourceOptions: ResourceOptions(
+          child: 
+            MapWidget(
+              resourceOptions: ResourceOptions(
                 accessToken:
-                    'pk.eyJ1IjoianZhbnNhbnRwdHMiLCJhIjoiY2w1YnI3ejNhMGFhdzNpbXA5MWExY3FqdiJ9.SNsWghIteFZD7DTuI4_FmA'),
-            cameraOptions: CameraOptions(
+                  'pk.eyJ1IjoianZhbnNhbnRwdHMiLCJhIjoiY2w1YnI3ejNhMGFhdzNpbXA5MWExY3FqdiJ9.SNsWghIteFZD7DTuI4_FmA'),
+              cameraOptions: CameraOptions(
                 center: Point(coordinates: Position(-104.79610715806722, 38.89094045460431)).toJson(),
                 zoom: 15,
                 pitch: 70,
                 bearing: 300),
-            onMapCreated: _onMapCreated,
-          ),
+              onMapCreated: _onMapCreated,
+            ),
         ),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Wrap(
-              spacing: 5,
-              runSpacing: 5,
-              children: [
-              ElevatedButton(
-                onPressed: () {
-                  // Click event for button 1
-                  log('button pressed');
-                  Point GHStop = getValueByKey('Gateway Hall Stop');
-                  _centerCameraOnLocation(GHStop);
-                },
-                style: const ButtonStyle(
-                  backgroundColor: MaterialStatePropertyAll<Color>(Colors.amber),
-                  foregroundColor: MaterialStatePropertyAll<Color>(Colors.black)),
-                child: const Text(
-                  'Gateway Hall Stop',
-                  textAlign: TextAlign.center,
+          child: 
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Wrap(
+                spacing: 5,
+                runSpacing: 5,
+                children: [
+                ElevatedButton(
+                  onPressed: () {
+                    log('button pressed');
+                    Point GHStop = getValueByKey('Gateway Hall Stop');
+                    _centerCameraOnLocation(GHStop);
+                  },
+                  style: const ButtonStyle(
+                    backgroundColor: MaterialStatePropertyAll<Color>(Colors.amber),
+                    foregroundColor: MaterialStatePropertyAll<Color>(Colors.black)),
+                  child: const Text('Gateway Hall Stop', textAlign: TextAlign.center),
                 ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Click event for button 2
-                  log('button pressed');
-                  Point centStop = getValueByKey('Centennial Stop');
-                  _centerCameraOnLocation(centStop);
-                },
-                style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(Colors.green)),
-                child: const Text(textAlign: TextAlign.center, 'Centennial Stop'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Click event for button 1
-                  log('button pressed');
-                  Point uHallStop = getValueByKey('University Hall Stop');
-                  _centerCameraOnLocation(uHallStop);
-                },
-                style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(Colors.orange)),
-                child: const Text(textAlign: TextAlign.center, 'University Hall Stop'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Click event for button 2
-                  log('button pressed');
-                  Point rotcStop = getValueByKey('ROTC Stop');
-                  _centerCameraOnLocation(rotcStop);
-                },
-                child: const Text(textAlign: TextAlign.center, 'ROTC Stop'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Click event for button 2
-                  log('button pressed');
-                  Point lodgeStop = getValueByKey('Lodge Stop');
-                  _centerCameraOnLocation(lodgeStop);
-                },
-                child: const Text(textAlign: TextAlign.center, 'Lodge Stop'),
-              ),
-            ],
+                ElevatedButton(
+                  onPressed: () {
+                    log('button pressed');
+                    Point centStop = getValueByKey('Centennial Stop');
+                    _centerCameraOnLocation(centStop);
+                  },
+                  style: const ButtonStyle(
+                    backgroundColor: MaterialStatePropertyAll<Color>(Colors.green),
+                    foregroundColor: MaterialStatePropertyAll<Color>(Colors.black),
+                  ),
+                  child: const Text(textAlign: TextAlign.center, 'Centennial Stop'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    log('button pressed');
+                    Point uHallStop = getValueByKey('University Hall Stop');
+                    _centerCameraOnLocation(uHallStop);
+                  },
+                  style: const ButtonStyle(
+                    backgroundColor: MaterialStatePropertyAll<Color>(Colors.orange),
+                    foregroundColor: MaterialStatePropertyAll<Color>(Colors.black),),
+                  child: const Text(textAlign: TextAlign.center, 'University Hall Stop'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    log('button pressed');
+                    Point rotcStop = getValueByKey('ROTC Stop');
+                    _centerCameraOnLocation(rotcStop);
+                  },
+                  style: const ButtonStyle(
+                    backgroundColor: MaterialStatePropertyAll<Color>(Colors.red),
+                    foregroundColor: MaterialStatePropertyAll<Color>(Colors.black),),
+                  child: const Text(textAlign: TextAlign.center, 'ROTC Stop'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    log('button pressed');
+                    Point lodgeStop = getValueByKey('Lodge Stop');
+                    _centerCameraOnLocation(lodgeStop);
+                  },
+                  style: const ButtonStyle(
+                    backgroundColor: MaterialStatePropertyAll<Color>(Colors.blue),
+                    foregroundColor: MaterialStatePropertyAll<Color>(Colors.black),),
+                  child: const Text(textAlign: TextAlign.center, 'Lodge Stop'),
+                ),
+              ],
+            ),
           ),
-        ),
         ),
         SizedBox(
           width: double.infinity,
@@ -525,6 +545,9 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
               },
               );
             },
+            style: const ButtonStyle(
+              backgroundColor: MaterialStatePropertyAll<Color>(Colors.indigoAccent),
+              foregroundColor: MaterialStatePropertyAll<Color>(Colors.black),),
             child: const Text('Find Closest Shuttle Stop'),
           ),
         ),
