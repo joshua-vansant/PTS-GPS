@@ -68,10 +68,10 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/userLocation.png
     - assets/bus_1.png
     - assets/bus_2.png
     - assets/bus_3.png
+    - assets/bus_stop_red.png
     - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see

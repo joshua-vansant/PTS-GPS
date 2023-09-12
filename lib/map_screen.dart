@@ -109,7 +109,8 @@ void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops,
 }
 
 
-String getClosestStop(Point point, List<Map<String, Point>> shuttleStops) {
+String getClosestStop(Point point) {
+  log('getting closest stop to ${point.coordinates.toJson()}');
   double minDistance = double.infinity;
   String closestStop = '';
 
@@ -126,12 +127,12 @@ String getClosestStop(Point point, List<Map<String, Point>> shuttleStops) {
       closestStop = stop.keys.first;
     }
   }
-
+  log('closest stop is $closestStop');
   return closestStop;
 }
 
-  Point getValueByKey(String key, List<Map<String, Point>> list) {
-  Map<String, Point> map = list.firstWhere((map) => map.containsKey(key), orElse: () => shuttleStops[4]);
+  Point getValueByKey(String key) {
+  Map<String, Point> map = shuttleStops.firstWhere((map) => map.containsKey(key), orElse: () => shuttleStops[4]);
   if (map != null) {
     // log('map key: ${map[key]!.toString()}');
     Point value = Point(coordinates: Position(map[key]!.coordinates.lng, map[key]!.coordinates.lat));
@@ -158,8 +159,8 @@ void _showPopup(String eta, String destination) {
             child: Text('Close'),
           ),
           TextButton(onPressed: () {
-            String stop = getClosestStop(userCoords!, shuttleStops);
-            Point stopLoc = getValueByKey(stop, shuttleStops);
+            String stop = getClosestStop(userCoords!);
+            Point stopLoc = getValueByKey(stop);
             // _launchMaps(getClosestStop(userCoords!, shuttleStops));
             String lat = stopLoc.coordinates.lat.toString();
             String lng = stopLoc.coordinates.lng.toString();
@@ -226,114 +227,28 @@ void _launchMaps(String lat, String lng) async {
   }
 
 
-  @override
-  void dispose() {
-    _tracker1Stream.close();
-    _tracker2Stream.close();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    var size = MediaQuery.of(context).size;
-
-    final double itemHeight = (size.height - kToolbarHeight - 24);
-    final double itemWidth = size.width/2;
-
-        return Column(
-      children: [
-        Expanded(
-          flex: 3,
-          child: MapWidget(
-            resourceOptions: ResourceOptions(
-                accessToken:
-                    'pk.eyJ1IjoianZhbnNhbnRwdHMiLCJhIjoiY2w1YnI3ejNhMGFhdzNpbXA5MWExY3FqdiJ9.SNsWghIteFZD7DTuI4_FmA'),
-            cameraOptions: CameraOptions(
-                center: Point(coordinates: Position(-104.79610715806722, 38.89094045460431)).toJson(),
-                zoom: 15,
-                pitch: 70,
-                bearing: 300),
-            onMapCreated: _onMapCreated,
-          ),
-        ),
-        SizedBox(
-          height: 75,
-          child: 
-            GridView.count(padding: EdgeInsets.all(0),
-            shrinkWrap: true,
-            childAspectRatio: (itemHeight/itemWidth),
-            crossAxisCount: 3,
-            children: [
-              ElevatedButton(
-                onPressed: () {
-                  // Click event for button 1
-                  log('button pressed');
-                },
-                style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(Colors.amber),),
-                child: const Text(
-                  'Gateway Hall Stop',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Click event for button 2
-                  log('button pressed');
-                },
-                style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(Colors.green)),
-                child: const Text(textAlign: TextAlign.center, 'Centennial Stop'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Click event for button 1
-                  log('button pressed');
-                },
-                child: const Text(textAlign: TextAlign.center, 'University Hall Stop'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Click event for button 2
-                  log('button pressed');
-                },
-                child: const Text(textAlign: TextAlign.center, 'ROTC Stop'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Click event for button 2
-                  log('button pressed');
-                },
-                child: const Text(textAlign: TextAlign.center, 'Lodge Stop'),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () {
-              log('button pressed');
-            },
-            child: const Text('Find Closest Shuttle Stop'),
-          ),
-        ),
-      ],
-    );
-  }
   
 
   void _centerCameraOnLocation(Point location) {
   mapboxMap?.setCamera(CameraOptions(center: location.toJson())
   );
 }
+  geo.Position getUserCoords(geo.Position position){
+          userCoords = Point(coordinates: Position(position.longitude, position.latitude));
+      // log('usercoords from getUserLoc = ${userCoords!.coordinates.toJson()}');
+      return position;
+  }
 
-
-  Future<Position> getUserLocation() async {
+  Future<void> getUserLocation() async {
     var permission = await geo.Geolocator.checkPermission();
-    geo.Position position = await geo.Geolocator.getCurrentPosition(
+    // log('permission for user location: ${permission.name}');
+    if(permission == geo.LocationPermission.whileInUse || permission == geo.LocationPermission.always){
+          geo.Position position = await geo.Geolocator.getCurrentPosition(
         desiredAccuracy: geo.LocationAccuracy.high
     );
-    userCoords = Point(coordinates: Position(position.longitude, position.latitude));
-      
+      getUserCoords(position);
+    }
+
     if (permission == geo.LocationPermission.denied) {
       permission = await geo.Geolocator.requestPermission();
       if (permission == geo.LocationPermission.denied) {
@@ -492,18 +407,18 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
     log('pointAnnotationManger is null');
     return;
   }
-  log('shuttle stops $shuttleStops');
 
   for (final stop in shuttleStops) {
     final name = stop.keys.first;
     final point = stop.values.first;
-    final imageBytes = await getImageBytes('assets/bus_1.png');
+    final imageBytes = await getImageBytes('assets/bus_stop_red.png');
     log('creating a shuttle stop marker');
     pointAnnotationManager?.create(PointAnnotationOptions(
       textField: name,
       textOffset: [0, -1.5],
+      // iconOffset: [0, -5],
       geometry: point.toJson(),
-      iconSize: 1,
+      iconSize: .3,
       symbolSortKey: 10,
       image: imageBytes,
     ));
@@ -529,6 +444,107 @@ Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [L
       pointAnnotationManager = value;
       addShuttleStopsToMap();
     });
-    
+  }
+   @override
+  void dispose() {
+    _tracker1Stream.close();
+    _tracker2Stream.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    var size = MediaQuery.of(context).size;
+
+    final double itemHeight = (size.height - kToolbarHeight - 24);
+    final double itemWidth = size.width/2;
+
+        return Column(
+      children: [
+        Expanded(
+          flex: 3,
+          child: MapWidget(
+            resourceOptions: ResourceOptions(
+                accessToken:
+                    'pk.eyJ1IjoianZhbnNhbnRwdHMiLCJhIjoiY2w1YnI3ejNhMGFhdzNpbXA5MWExY3FqdiJ9.SNsWghIteFZD7DTuI4_FmA'),
+            cameraOptions: CameraOptions(
+                center: Point(coordinates: Position(-104.79610715806722, 38.89094045460431)).toJson(),
+                zoom: 15,
+                pitch: 70,
+                bearing: 300),
+            onMapCreated: _onMapCreated,
+          ),
+        ),
+        SizedBox(
+          height: 75,
+          child: 
+            GridView.count(padding: EdgeInsets.all(0),
+            shrinkWrap: true,
+            childAspectRatio: (itemHeight/itemWidth),
+            crossAxisCount: 3,
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                  // Click event for button 1
+                  log('button pressed');
+                  _centerCameraOnLocation(Point(coordinates: Position(-104.80296157732812, 38.89186724000255)));
+                },
+                style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(Colors.amber),),
+                child: const Text(
+                  'Gateway Hall Stop',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // Click event for button 2
+                  log('button pressed');
+                },
+                style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(Colors.green)),
+                child: const Text(textAlign: TextAlign.center, 'Centennial Stop'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // Click event for button 1
+                  log('button pressed');
+                },
+                child: const Text(textAlign: TextAlign.center, 'University Hall Stop'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // Click event for button 2
+                  log('button pressed');
+                },
+                child: const Text(textAlign: TextAlign.center, 'ROTC Stop'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // Click event for button 2
+                  log('button pressed');
+                },
+                child: const Text(textAlign: TextAlign.center, 'Lodge Stop'),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () {
+              getUserLocation();
+              String closestStop = getClosestStop(userCoords!);
+              Point closestStopPoint = getValueByKey(closestStop);
+              String eta;
+              getETA(userCoords!, closestStopPoint, TravelMode.driving).then((value) {
+                eta = value;
+                _showPopup(eta, closestStop);
+              },
+              );
+            },
+            child: const Text('Find Closest Shuttle Stop'),
+          ),
+        ),
+      ],
+    );
   }
 }
