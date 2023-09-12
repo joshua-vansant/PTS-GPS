@@ -126,7 +126,7 @@ class _MapScreenState extends State<MapScreen> {
     Map<String, Point> map = shuttleStops.firstWhere((map) => map.containsKey(key), orElse: () => shuttleStops[4]);
     if (map != null) {
       Point value = Point(coordinates: Position(map[key]!.coordinates.lng, map[key]!.coordinates.lat));
-      log('getValueByKey returning: ${value.coordinates.toJson()}');
+      // log('getValueByKey returning: ${value.coordinates.toJson()}');
       return value;
     }
     return Point(coordinates: Position(0, 0)); // Key not found
@@ -279,19 +279,15 @@ class _MapScreenState extends State<MapScreen> {
       t2Coords = tracker2Point;
       _tracker1Stream.add(tracker1Point);
       _tracker2Stream.add(tracker2Point);
-      
     });
   }
 
 
   Future<dynamic> fetchData() async {
-    // log('fetchData called');
     final response = await http.get(Uri.parse(
         'https://api.init.st/data/v1/events/latest?accessKey=ist_rg6P7BFsuN8Ekew6hKsE5t9QoMEp2KZN&bucketKey=jmvs_pts_tracker'));
-
     if (response.statusCode == 200) {
       final jsonResponse = json.decode(response.body);
-      // log('jsonResponse = $jsonResponse');
       return jsonResponse;
     } else {
       throw Exception('Failed to load data');
@@ -306,6 +302,7 @@ class _MapScreenState extends State<MapScreen> {
 
     return fileStream.then((fileInfo) async {
       if (fileInfo != null && await fileInfo.file.exists()) {
+        log('using a cached eta!! *GOOD NEWS!*');
         final file = fileInfo.file;
         final cachedValue = await file.readAsString();
         return cachedValue;
@@ -343,7 +340,7 @@ class _MapScreenState extends State<MapScreen> {
     final ByteData bytes = await rootBundle.load(imagePath);
     final Uint8List list = bytes.buffer.asUint8List();
     PointAnnotation? tracker;
-    log('creating marker for ${point.coordinates.toJson()}');
+    // log('creating marker for ${point.coordinates.toJson()}');
     if (trackerNumber == 1) {
       tracker = tracker1;
     } else if (trackerNumber == 2) {
@@ -362,12 +359,12 @@ class _MapScreenState extends State<MapScreen> {
         if (trackerNumber == 1) {
           setState(() {
             tracker1 = value;
-            log('tracker1 set to ${tracker1!.geometry}');
+            // log('tracker1 set to ${tracker1!.geometry}');
           });
         } else if (trackerNumber == 2) {
           setState(() {
             tracker2 = value;
-            log('tracker2 set to ${tracker2!.geometry}');
+            // log('tracker2 set to ${tracker2!.geometry}');
           });
           }
       });
@@ -402,7 +399,7 @@ class _MapScreenState extends State<MapScreen> {
       final name = stop.keys.first;
       final point = stop.values.first;
       final imageBytes = await getImageBytes('assets/bus_stop_red.png');
-      log('creating a shuttle stop marker');
+      // log('creating a shuttle stop marker');
       pointAnnotationManager?.create(PointAnnotationOptions(
         textField: name,
         textOffset: [0, -1.5],
@@ -414,6 +411,42 @@ class _MapScreenState extends State<MapScreen> {
       ));
     }
   }
+
+  Future<Point> getClosestShuttle(Point stopLocation) async {
+  double minDistance = double.infinity;
+  Point closestShuttleLocation = Point(coordinates: Position(0, 0));
+
+  dynamic jsonResponse = await fetchData();
+
+  List<Point> shuttleLocations = [];
+
+  final tracker1Value = jsonResponse['tracker1']['value'].toString();
+  final t1Lat = double.parse(tracker1Value.split(',')[0]);
+  final t1Lng = double.parse(tracker1Value.split(',')[1]);
+  shuttleLocations.add(Point(coordinates: Position(t1Lng, t1Lat)));
+
+  final tracker2Value = jsonResponse['tracker2']['value'].toString();
+  final t2Lat = double.parse(tracker2Value.split(',')[0]);
+  final t2Lng = double.parse(tracker2Value.split(',')[1]);
+  shuttleLocations.add(Point(coordinates: Position(t2Lng, t2Lat)));
+
+  for (Point shuttleLocation in shuttleLocations) {
+    double distance = geo.GeolocatorPlatform.instance.distanceBetween(
+      stopLocation.coordinates.lat as double,
+      stopLocation.coordinates.lng as double,
+      shuttleLocation.coordinates.lat as double,
+      shuttleLocation.coordinates.lng as double,
+    );
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      closestShuttleLocation = shuttleLocation;
+    }
+  }
+  log('closest shuttle is: ${closestShuttleLocation.coordinates.toJson()}');
+  return closestShuttleLocation;
+}
+
 
 
   _onMapCreated(MapboxMap mapboxMap) {
@@ -433,6 +466,32 @@ class _MapScreenState extends State<MapScreen> {
       addShuttleStopsToMap();
     });
   }
+
+  void _showDialog(String stopString, Point closestShuttle) {
+    Point stopPoint = getValueByKey(stopString);
+    String eta; 
+    getETA(closestShuttle, stopPoint, TravelMode.driving).then((value) {
+      showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: Text('ETA To $stopString'),
+        content: Text('A shuttle should arrive at $stopString in around $value seconds'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: Text('Close'),
+          ),
+        ],
+      );
+    },
+  );
+    },);
+  
+}
+
 
   @override
   void dispose() {
@@ -473,9 +532,12 @@ class _MapScreenState extends State<MapScreen> {
                 children: [
                 ElevatedButton(
                   onPressed: () {
-                    log('button pressed');
                     Point GHStop = getValueByKey('Gateway Hall Stop');
                     _centerCameraOnLocation(GHStop);
+                    getClosestShuttle(GHStop).then((value) {
+                      _showDialog('Gateway Hall Stop', value);
+                  },
+                  );
                   },
                   style: const ButtonStyle(
                     backgroundColor: MaterialStatePropertyAll<Color>(Colors.amber),
@@ -487,6 +549,10 @@ class _MapScreenState extends State<MapScreen> {
                     log('button pressed');
                     Point centStop = getValueByKey('Centennial Stop');
                     _centerCameraOnLocation(centStop);
+                    getClosestShuttle(centStop).then((value) {
+                    _showDialog('Centennial Stop', value);
+                  },
+                  );
                   },
                   style: const ButtonStyle(
                     backgroundColor: MaterialStatePropertyAll<Color>(Colors.green),
@@ -499,6 +565,10 @@ class _MapScreenState extends State<MapScreen> {
                     log('button pressed');
                     Point uHallStop = getValueByKey('University Hall Stop');
                     _centerCameraOnLocation(uHallStop);
+                    getClosestShuttle(uHallStop).then((value) {
+                      _showDialog('University Hall Stop', value);
+                  },
+                  );
                   },
                   style: const ButtonStyle(
                     backgroundColor: MaterialStatePropertyAll<Color>(Colors.orange),
@@ -510,6 +580,10 @@ class _MapScreenState extends State<MapScreen> {
                     log('button pressed');
                     Point rotcStop = getValueByKey('ROTC Stop');
                     _centerCameraOnLocation(rotcStop);
+                    getClosestShuttle(rotcStop).then((value) {
+                      _showDialog('ROTC Stop', value);
+                  },
+                  );
                   },
                   style: const ButtonStyle(
                     backgroundColor: MaterialStatePropertyAll<Color>(Colors.red),
@@ -521,6 +595,10 @@ class _MapScreenState extends State<MapScreen> {
                     log('button pressed');
                     Point lodgeStop = getValueByKey('Lodge Stop');
                     _centerCameraOnLocation(lodgeStop);
+                    getClosestShuttle(lodgeStop).then((value) {
+                      _showDialog('Lodge Stop', value);
+                  },
+                  );
                   },
                   style: const ButtonStyle(
                     backgroundColor: MaterialStatePropertyAll<Color>(Colors.blue),
