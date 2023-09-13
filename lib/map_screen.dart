@@ -390,26 +390,57 @@ class _MapScreenState extends State<MapScreen> {
   }
   
   void addShuttleStopsToMap() async {
+    int imageHeight = 0, imageWidth = 0;
     if (pointAnnotationManager == null) {
       log('pointAnnotationManger is null');
       return;
     }
+    Uint8List bytes;
+    getImageBytes('assets/bus_stop_red.png').then((value) {
+      bytes = value;
+      final decodedImage = decodeImageFromList(bytes).then((value) {
+        imageHeight = value.height;
+        imageWidth = value.width;
+        log('imageHeight=$imageHeight, imageWidth=$imageWidth');
+      },);
+      
+    },);
 
     for (final stop in shuttleStops) {
       final name = stop.keys.first;
       final point = stop.values.first;
       final imageBytes = await getImageBytes('assets/bus_stop_red.png');
       // log('creating a shuttle stop marker');
-      pointAnnotationManager?.create(PointAnnotationOptions(
+      pointAnnotationManager?.create( PointAnnotationOptions(
         textField: name,
         textOffset: [0, -1.5],
-        // iconOffset: [0, -5],
         geometry: point.toJson(),
         iconSize: .3,
         symbolSortKey: 10,
         image: imageBytes,
+        // iconOffset: [0, -imageHeight/2],
+        iconAnchor: IconAnchor.BOTTOM
       ));
     }
+
+    // final imageProvider = AssetImage('assets/bus_stop_red.png');
+    // final imageBytes = await imageProvider.obtainKey(
+    //   createLocalImageConfiguration(context),
+    // ).then((key) => key.bundle.load(key.name));
+
+  // SymbolLayer(id: 1, sourceId: "bus_stop_red");
+    
+    // // Add the 3D marker image to the map style
+    // SymbolLayer().addImage('3d-marker', imageBytes.buffer.asUint8List());
+
+    // // Add a 3D marker symbol to the map
+    // _symbolManager?.create(SymbolOptions(
+    //   geometry: LatLng(37.7749, -122.4194),
+    //   iconImage: '3d-marker',
+    //   iconAnchor: 'bottom',
+    //   iconOffset: Offset(0, -20),
+    // ));
+
   }
 
   Future<Point> getClosestShuttle(Point stopLocation) async {
@@ -451,20 +482,33 @@ class _MapScreenState extends State<MapScreen> {
 
   _onMapCreated(MapboxMap mapboxMap) {
     this.mapboxMap = mapboxMap;
-    this.mapboxMap!.gestures.updateSettings(GesturesSettings(rotateEnabled: false,  ));
+    this.mapboxMap!.gestures.updateSettings(GesturesSettings(
+      rotateEnabled: false, 
+      pinchPanEnabled: false, 
+      // pinchToZoomEnabled: false,
+      doubleTapToZoomInEnabled: false,
+      doubleTouchToZoomOutEnabled: false,
+      pitchEnabled: false,
+      quickZoomEnabled: false,
+      // scrollEnabled: false,
+       ));
     this.mapboxMap!.location.updateSettings(LocationComponentSettings(enabled: true)); // show current position
-      // this.mapboxMap!.setBounds(
-      //   CameraBoundsOptions(bounds: CoordinateBounds
-      //   (southwest: Point(coordinates: Position(-104.82192257233655, 38.885950899335185)).toJson(), 
-      //   northeast:  Point(coordinates: Position(-104.77512700039927, 38.913727655885715 )).toJson(), 
-      //   infiniteBounds: false,)
-      //   , minZoom: 10
-      //   , maxZoom: 20
-      //   ));
+    this.mapboxMap!.compass.updateSettings(CompassSettings(enabled: false,));
+    this.mapboxMap!.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
+      this.mapboxMap!.setBounds(
+        CameraBoundsOptions(bounds: CoordinateBounds
+        (southwest: Point(coordinates: Position(-104.8249904837867, 38.88429262072977)).toJson(),
+        northeast:  Point(coordinates: Position(-104.77047495032352, 38.922085601235615)).toJson(), 
+        infiniteBounds: false,)
+        , minZoom: 10
+        , maxZoom: 20
+        ));
+    
     mapboxMap.annotations.createPointAnnotationManager().then((value) async {
       pointAnnotationManager = value;
       addShuttleStopsToMap();
     });
+    
   }
 
   void _showDialog(String stopString, Point closestShuttle) {
