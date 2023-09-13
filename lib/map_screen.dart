@@ -233,6 +233,11 @@ class _MapScreenState extends State<MapScreen> {
     mapboxMap?.setCamera(CameraOptions( center: location.toJson() ));
   }
 
+  void _setBearingToTracker(double bearing){
+    log('setting bearing!');
+    mapboxMap?.setCamera(CameraOptions(bearing: bearing));
+  }
+
   geo.Position getUserCoords(geo.Position position){
     userCoords = Point(coordinates: Position(position.longitude, position.latitude));
     return position;
@@ -422,25 +427,6 @@ class _MapScreenState extends State<MapScreen> {
         iconAnchor: IconAnchor.BOTTOM
       ));
     }
-
-    // final imageProvider = AssetImage('assets/bus_stop_red.png');
-    // final imageBytes = await imageProvider.obtainKey(
-    //   createLocalImageConfiguration(context),
-    // ).then((key) => key.bundle.load(key.name));
-
-  // SymbolLayer(id: 1, sourceId: "bus_stop_red");
-    
-    // // Add the 3D marker image to the map style
-    // SymbolLayer().addImage('3d-marker', imageBytes.buffer.asUint8List());
-
-    // // Add a 3D marker symbol to the map
-    // _symbolManager?.create(SymbolOptions(
-    //   geometry: LatLng(37.7749, -122.4194),
-    //   iconImage: '3d-marker',
-    //   iconAnchor: 'bottom',
-    //   iconOffset: Offset(0, -20),
-    // ));
-
   }
 
   Future<Point> getClosestShuttle(Point stopLocation) async {
@@ -479,6 +465,18 @@ class _MapScreenState extends State<MapScreen> {
 }
 
 
+double bearingBetweenPoints(Point point1, Point point2) {
+  final lat1 = point1.coordinates.lat;
+  final lon1 = point1.coordinates.lng;
+  final lat2 = point2.coordinates.lat;
+  final lon2 = point2.coordinates.lng;
+  final y = math.sin(lon2 - lon1) * math.cos(lat2);
+  final x = math.cos(lat1) * math.sin(lat2) -
+      math.sin(lat1) * math.cos(lat2) * math.cos(lon2 - lon1);
+  final bearing = math.atan2(y, x);
+  final bearingDegrees = bearing * 180 / math.pi;
+  return (bearingDegrees + 360) % 360;
+}
 
   _onMapCreated(MapboxMap mapboxMap) {
     this.mapboxMap = mapboxMap;
@@ -577,9 +575,13 @@ class _MapScreenState extends State<MapScreen> {
                 ElevatedButton(
                   onPressed: () {
                     Point GHStop = getValueByKey('Gateway Hall Stop');
+                    Point closestShuttle = Point(coordinates: Position(0, 0));
                     _centerCameraOnLocation(GHStop);
                     getClosestShuttle(GHStop).then((value) {
-                      _showDialog('Gateway Hall Stop', value);
+                     closestShuttle = value;
+                     double bearing = bearingBetweenPoints(GHStop, closestShuttle);
+                     _setBearingToTracker(bearing);
+                    _showDialog('Gateway Hall Stop', closestShuttle);
                   },
                   );
                   },
@@ -592,11 +594,18 @@ class _MapScreenState extends State<MapScreen> {
                   onPressed: () {
                     log('button pressed');
                     Point centStop = getValueByKey('Centennial Stop');
+                    Point closestShuttle = Point(coordinates: Position(0, 0));
                     _centerCameraOnLocation(centStop);
                     getClosestShuttle(centStop).then((value) {
-                    _showDialog('Centennial Stop', value);
+                      closestShuttle = value;
+                      double bearing = bearingBetweenPoints(centStop, closestShuttle);
+                      _setBearingToTracker(bearing);
+                      _showDialog('Centennial Stop', closestShuttle);
                   },
                   );
+                  
+
+
                   },
                   style: const ButtonStyle(
                     backgroundColor: MaterialStatePropertyAll<Color>(Colors.green),
