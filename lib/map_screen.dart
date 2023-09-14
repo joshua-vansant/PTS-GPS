@@ -230,12 +230,16 @@ class _MapScreenState extends State<MapScreen> {
 
 
   void _centerCameraOnLocation(Point location) {
-    mapboxMap?.setCamera(CameraOptions( center: location.toJson() ));
+    mapboxMap?.setCamera(CameraOptions( center: location.toJson(), zoom: 17 ));
   }
 
   void _setBearingToTracker(double bearing){
     log('setting bearing!');
-    mapboxMap?.setCamera(CameraOptions(bearing: bearing));
+    // mapboxMap?.flyTo(CameraOptions(bearing: bearing), MapAnimationOptions(duration: 500));
+    mapboxMap?.getCameraState().then((value) {
+      mapboxMap?.flyTo(CameraOptions(bearing: bearing), MapAnimationOptions(duration: 2000));
+    }
+    );
   }
 
   geo.Position getUserCoords(geo.Position position){
@@ -421,6 +425,7 @@ class _MapScreenState extends State<MapScreen> {
         textOffset: [0, -1.5],
         geometry: point.toJson(),
         iconSize: .3,
+        textSize: 14,
         symbolSortKey: 10,
         image: imageBytes,
         // iconOffset: [0, -imageHeight/2],
@@ -493,14 +498,14 @@ double bearingBetweenPoints(Point point1, Point point2) {
     this.mapboxMap!.location.updateSettings(LocationComponentSettings(enabled: true)); // show current position
     this.mapboxMap!.compass.updateSettings(CompassSettings(enabled: false,));
     this.mapboxMap!.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
-      this.mapboxMap!.setBounds(
-        CameraBoundsOptions(bounds: CoordinateBounds
-        (southwest: Point(coordinates: Position(-104.8249904837867, 38.88429262072977)).toJson(),
-        northeast:  Point(coordinates: Position(-104.77047495032352, 38.922085601235615)).toJson(), 
-        infiniteBounds: false,)
-        , minZoom: 10
-        , maxZoom: 20
-        ));
+      // this.mapboxMap!.setBounds(
+      //   CameraBoundsOptions(bounds: CoordinateBounds
+      //   (southwest: Point(coordinates: Position(-104.8249904837867, 38.88429262072977)).toJson(),
+      //   northeast:  Point(coordinates: Position(-104.77047495032352, 38.922085601235615)).toJson(), 
+      //   infiniteBounds: false,)
+      //   , minZoom: 10
+      //   , maxZoom: 20
+      //   ));
     
     mapboxMap.annotations.createPointAnnotationManager().then((value) async {
       pointAnnotationManager = value;
@@ -616,9 +621,13 @@ double bearingBetweenPoints(Point point1, Point point2) {
                 ElevatedButton(
                   onPressed: () {
                     log('button pressed');
+                    Point closestShuttle = Point(coordinates: Position(0, 0));
                     Point uHallStop = getValueByKey('University Hall Stop');
                     _centerCameraOnLocation(uHallStop);
                     getClosestShuttle(uHallStop).then((value) {
+                      closestShuttle = value;
+                      double bearing = bearingBetweenPoints(uHallStop, closestShuttle);
+                      _setBearingToTracker(bearing);
                       _showDialog('University Hall Stop', value);
                   },
                   );
@@ -631,9 +640,13 @@ double bearingBetweenPoints(Point point1, Point point2) {
                 ElevatedButton(
                   onPressed: () {
                     log('button pressed');
+                    Point closestShuttle = Point(coordinates: Position(0, 0));
                     Point rotcStop = getValueByKey('ROTC Stop');
                     _centerCameraOnLocation(rotcStop);
                     getClosestShuttle(rotcStop).then((value) {
+                      closestShuttle = value;
+                      double bearing = bearingBetweenPoints(rotcStop, closestShuttle);
+                      _setBearingToTracker(bearing);
                       _showDialog('ROTC Stop', value);
                   },
                   );
@@ -646,9 +659,13 @@ double bearingBetweenPoints(Point point1, Point point2) {
                 ElevatedButton(
                   onPressed: () {
                     log('button pressed');
+                    Point closestShuttle = Point(coordinates: Position(0, 0));
                     Point lodgeStop = getValueByKey('Lodge Stop');
                     _centerCameraOnLocation(lodgeStop);
                     getClosestShuttle(lodgeStop).then((value) {
+                      closestShuttle = value;
+                      double bearing = bearingBetweenPoints(lodgeStop, closestShuttle);
+                      _setBearingToTracker(bearing);
                       _showDialog('Lodge Stop', value);
                   },
                   );
