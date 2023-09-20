@@ -230,12 +230,11 @@ class _MapScreenState extends State<MapScreen> {
 
 
   void _centerCameraOnLocation(Point location) {
-    mapboxMap?.setCamera(CameraOptions( center: location.toJson(), zoom: 17 ));
+    mapboxMap?.setCamera(CameraOptions(center: location.toJson(), zoom: 17 ));
   }
 
   void _setBearingToTracker(double bearing){
     log('setting bearing!');
-    // mapboxMap?.flyTo(CameraOptions(bearing: bearing), MapAnimationOptions(duration: 500));
     mapboxMap?.getCameraState().then((value) {
       mapboxMap?.flyTo(CameraOptions(bearing: bearing), MapAnimationOptions(duration: 2000));
     }
@@ -349,7 +348,6 @@ class _MapScreenState extends State<MapScreen> {
     final ByteData bytes = await rootBundle.load(imagePath);
     final Uint8List list = bytes.buffer.asUint8List();
     PointAnnotation? tracker;
-    // log('creating marker for ${point.coordinates.toJson()}');
     if (trackerNumber == 1) {
       tracker = tracker1;
     } else if (trackerNumber == 2) {
@@ -368,12 +366,10 @@ class _MapScreenState extends State<MapScreen> {
         if (trackerNumber == 1) {
           setState(() {
             tracker1 = value;
-            // log('tracker1 set to ${tracker1!.geometry}');
           });
         } else if (trackerNumber == 2) {
           setState(() {
             tracker2 = value;
-            // log('tracker2 set to ${tracker2!.geometry}');
           });
           }
       });
@@ -412,14 +408,12 @@ class _MapScreenState extends State<MapScreen> {
         imageWidth = value.width;
         log('imageHeight=$imageHeight, imageWidth=$imageWidth');
       },);
-      
     },);
 
     for (final stop in shuttleStops) {
       final name = stop.keys.first;
       final point = stop.values.first;
       final imageBytes = await getImageBytes('assets/bus_stop_red.png');
-      // log('creating a shuttle stop marker');
       pointAnnotationManager?.create( PointAnnotationOptions(
         textField: name,
         textOffset: [0, -1.5],
@@ -428,60 +422,54 @@ class _MapScreenState extends State<MapScreen> {
         textSize: 14,
         symbolSortKey: 10,
         image: imageBytes,
-        // iconOffset: [0, -imageHeight/2],
         iconAnchor: IconAnchor.BOTTOM
       ));
     }
   }
 
   Future<Point> getClosestShuttle(Point stopLocation) async {
-  double minDistance = double.infinity;
-  Point closestShuttleLocation = Point(coordinates: Position(0, 0));
+    double minDistance = double.infinity;
+    Point closestShuttleLocation = Point(coordinates: Position(0, 0));
+    dynamic jsonResponse = await fetchData();
+    List<Point> shuttleLocations = [];
+    final tracker1Value = jsonResponse['tracker1']['value'].toString();
+    final t1Lat = double.parse(tracker1Value.split(',')[0]);
+    final t1Lng = double.parse(tracker1Value.split(',')[1]);
+    shuttleLocations.add(Point(coordinates: Position(t1Lng, t1Lat)));
 
-  dynamic jsonResponse = await fetchData();
+    final tracker2Value = jsonResponse['tracker2']['value'].toString();
+    final t2Lat = double.parse(tracker2Value.split(',')[0]);
+    final t2Lng = double.parse(tracker2Value.split(',')[1]);
+    shuttleLocations.add(Point(coordinates: Position(t2Lng, t2Lat)));
 
-  List<Point> shuttleLocations = [];
-
-  final tracker1Value = jsonResponse['tracker1']['value'].toString();
-  final t1Lat = double.parse(tracker1Value.split(',')[0]);
-  final t1Lng = double.parse(tracker1Value.split(',')[1]);
-  shuttleLocations.add(Point(coordinates: Position(t1Lng, t1Lat)));
-
-  final tracker2Value = jsonResponse['tracker2']['value'].toString();
-  final t2Lat = double.parse(tracker2Value.split(',')[0]);
-  final t2Lng = double.parse(tracker2Value.split(',')[1]);
-  shuttleLocations.add(Point(coordinates: Position(t2Lng, t2Lat)));
-
-  for (Point shuttleLocation in shuttleLocations) {
-    double distance = geo.GeolocatorPlatform.instance.distanceBetween(
-      stopLocation.coordinates.lat as double,
-      stopLocation.coordinates.lng as double,
-      shuttleLocation.coordinates.lat as double,
-      shuttleLocation.coordinates.lng as double,
-    );
-
-    if (distance < minDistance) {
-      minDistance = distance;
-      closestShuttleLocation = shuttleLocation;
+    for (Point shuttleLocation in shuttleLocations) {
+      double distance = geo.GeolocatorPlatform.instance.distanceBetween(
+        stopLocation.coordinates.lat as double,
+        stopLocation.coordinates.lng as double,
+        shuttleLocation.coordinates.lat as double,
+        shuttleLocation.coordinates.lng as double,
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestShuttleLocation = shuttleLocation;
+      }
     }
+    log('closest shuttle is: ${closestShuttleLocation.coordinates.toJson()}');
+    return closestShuttleLocation;
   }
-  log('closest shuttle is: ${closestShuttleLocation.coordinates.toJson()}');
-  return closestShuttleLocation;
-}
 
-
-double bearingBetweenPoints(Point point1, Point point2) {
-  final lat1 = point1.coordinates.lat;
-  final lon1 = point1.coordinates.lng;
-  final lat2 = point2.coordinates.lat;
-  final lon2 = point2.coordinates.lng;
-  final y = math.sin(lon2 - lon1) * math.cos(lat2);
-  final x = math.cos(lat1) * math.sin(lat2) -
-      math.sin(lat1) * math.cos(lat2) * math.cos(lon2 - lon1);
-  final bearing = math.atan2(y, x);
-  final bearingDegrees = bearing * 180 / math.pi;
-  return (bearingDegrees + 360) % 360;
-}
+  double bearingBetweenPoints(Point point1, Point point2) {
+    final lat1 = point1.coordinates.lat;
+    final lon1 = point1.coordinates.lng;
+    final lat2 = point2.coordinates.lat;
+    final lon2 = point2.coordinates.lng;
+    final y = math.sin(lon2 - lon1) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(lon2 - lon1);
+    final bearing = math.atan2(y, x);
+    final bearingDegrees = bearing * 180 / math.pi;
+    return (bearingDegrees + 360) % 360;
+  }
 
   _onMapCreated(MapboxMap mapboxMap) {
     this.mapboxMap = mapboxMap;
@@ -511,7 +499,6 @@ double bearingBetweenPoints(Point point1, Point point2) {
       pointAnnotationManager = value;
       addShuttleStopsToMap();
     });
-    
   }
 
   void _showDialog(String stopString, Point closestShuttle) {
@@ -519,25 +506,23 @@ double bearingBetweenPoints(Point point1, Point point2) {
     String eta; 
     getETA(closestShuttle, stopPoint, TravelMode.driving).then((value) {
       showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: Text('ETA To $stopString'),
-        content: Text('A shuttle should arrive at $stopString in around $value seconds'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: Text('Close'),
-          ),
-        ],
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+          title: Text('ETA To $stopString'),
+          content: Text('A shuttle should arrive at $stopString in around $value seconds'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Close'),
+            ),],
+          );
+        },
       );
-    },
-  );
     },);
-  
-}
+  }
 
 
   @override
@@ -549,9 +534,6 @@ double bearingBetweenPoints(Point point1, Point point2) {
 
   @override
   Widget build(BuildContext context) {
-    var size = MediaQuery.of(context).size;
-    final double itemHeight = (size.height - kToolbarHeight - 24);
-    final double itemWidth = size.width/2;
     return Column(
       children: [ 
         Expanded(
@@ -579,12 +561,12 @@ double bearingBetweenPoints(Point point1, Point point2) {
                 children: [
                 ElevatedButton(
                   onPressed: () {
-                    Point GHStop = getValueByKey('Gateway Hall Stop');
+                    Point gHallStop = getValueByKey('Gateway Hall Stop');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
-                    _centerCameraOnLocation(GHStop);
-                    getClosestShuttle(GHStop).then((value) {
+                    _centerCameraOnLocation(gHallStop);
+                    getClosestShuttle(gHallStop).then((value) {
                      closestShuttle = value;
-                     double bearing = bearingBetweenPoints(GHStop, closestShuttle);
+                     double bearing = bearingBetweenPoints(gHallStop, closestShuttle);
                      _setBearingToTracker(bearing);
                     _showDialog('Gateway Hall Stop', closestShuttle);
                   },
@@ -593,7 +575,7 @@ double bearingBetweenPoints(Point point1, Point point2) {
                   style: const ButtonStyle(
                     backgroundColor: MaterialStatePropertyAll<Color>(Colors.amber),
                     foregroundColor: MaterialStatePropertyAll<Color>(Colors.black)),
-                  child: const Text('Gateway Hall Stop', textAlign: TextAlign.center),
+                    child: const Text('Gateway Hall Stop', textAlign: TextAlign.center),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -606,11 +588,7 @@ double bearingBetweenPoints(Point point1, Point point2) {
                       double bearing = bearingBetweenPoints(centStop, closestShuttle);
                       _setBearingToTracker(bearing);
                       _showDialog('Centennial Stop', closestShuttle);
-                  },
-                  );
-                  
-
-
+                    },);
                   },
                   style: const ButtonStyle(
                     backgroundColor: MaterialStatePropertyAll<Color>(Colors.green),
@@ -629,8 +607,7 @@ double bearingBetweenPoints(Point point1, Point point2) {
                       double bearing = bearingBetweenPoints(uHallStop, closestShuttle);
                       _setBearingToTracker(bearing);
                       _showDialog('University Hall Stop', value);
-                  },
-                  );
+                    },);
                   },
                   style: const ButtonStyle(
                     backgroundColor: MaterialStatePropertyAll<Color>(Colors.orange),
