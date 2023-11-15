@@ -551,11 +551,11 @@ double bearingBetweenPoints(Point point1, Point point2) {
               onMapCreated: _onMapCreated,
             ),
         ),
-        Expanded(
-          child: 
+
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Wrap(
+                alignment: WrapAlignment.center,
                 spacing: 5,
                 runSpacing: 5,
                 children: [
@@ -655,7 +655,7 @@ double bearingBetweenPoints(Point point1, Point point2) {
               ],
             ),
           ),
-        ),
+
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
