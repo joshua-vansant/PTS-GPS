@@ -458,18 +458,18 @@ class _MapScreenState extends State<MapScreen> {
     return closestShuttleLocation;
   }
 
-  double bearingBetweenPoints(Point point1, Point point2) {
-    final lat1 = point1.coordinates.lat;
-    final lon1 = point1.coordinates.lng;
-    final lat2 = point2.coordinates.lat;
-    final lon2 = point2.coordinates.lng;
-    final y = math.sin(lon2 - lon1) * math.cos(lat2);
-    final x = math.cos(lat1) * math.sin(lat2) -
-        math.sin(lat1) * math.cos(lat2) * math.cos(lon2 - lon1);
-    final bearing = math.atan2(y, x);
-    final bearingDegrees = bearing * 180 / math.pi;
-    return (bearingDegrees + 360) % 360;
-  }
+double bearingBetweenPoints(Point point1, Point point2) {
+  final lat1 = point1.coordinates.lat * (math.pi / 180);
+  final lon1 = point1.coordinates.lng * (math.pi / 180);
+  final lat2 = point2.coordinates.lat * (math.pi / 180);
+  final lon2 = point2.coordinates.lng * (math.pi / 180);
+  final y = math.sin(lon2 - lon1) * math.cos(lat2);
+  final x = math.cos(lat1) * math.sin(lat2) -
+      math.sin(lat1) * math.cos(lat2) * math.cos(lon2 - lon1);
+  final bearing = math.atan2(y, x);
+  final bearingDegrees = (bearing * 180 / math.pi + 360) % 360;
+  return bearingDegrees;
+}
 
   _onMapCreated(MapboxMap mapboxMap) {
     this.mapboxMap = mapboxMap;
