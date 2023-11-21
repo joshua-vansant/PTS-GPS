@@ -22,8 +22,9 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  StreamController<Point> _tracker1Stream = StreamController.broadcast();
-  StreamController<Point> _tracker2Stream = StreamController.broadcast();
+  final StreamController<Point> _tracker1Stream = StreamController.broadcast();
+  final StreamController<Point> _tracker2Stream = StreamController.broadcast();
+  final cacheManager = DefaultCacheManager();
   MapboxMap? mapboxMap;
   PointAnnotationManager? pointAnnotationManager;
   PointAnnotation? tracker1, tracker2, userLocation;
@@ -32,27 +33,13 @@ class _MapScreenState extends State<MapScreen> {
   String t1Approaching = '', t2Approaching = '';
   bool t1ButtonEnabled = true, t2ButtonEnabled = true;
   Timer? t1ETATimer;
-  final cacheManager = DefaultCacheManager();
   geo.GeolocatorPlatform geolocatorPlatform = geo.GeolocatorPlatform.instance;
-
   List<Map<String, Point>> shuttleStops = [
-  {
-    'Gateway Hall Stop': Point(coordinates: Position(-104.80296157732812, 38.89186724000255)),
-  },  
-  {
-    'Centennial Stop': Point(coordinates: Position(-104.79906405070052, 38.891729971857785)),
-  },
-  {
-    'University Hall Stop': Point(coordinates: Position(-104.78817384564272, 38.889471922347234)),
-  },
-  {
-    'ROTC Stop': Point(coordinates: Position(-104.81458260704491, 38.90249651010308)),
-  },  
-  {
-    'Lodge Stop': Point(coordinates: Position(-104.81464673627568, 38.91512778864399)),
-  },
-  
-  // Add more stops as needed
+  {'Gateway Hall Stop': Point(coordinates: Position(-104.80296157732812, 38.89186724000255)),},  
+  {'Centennial Stop': Point(coordinates: Position(-104.79906405070052, 38.891729971857785)),},
+  {'University Hall Stop': Point(coordinates: Position(-104.78817384564272, 38.889471922347234)),},
+  {'ROTC Stop': Point(coordinates: Position(-104.81458260704491, 38.90249651010308)),},  
+  {'Lodge Stop': Point(coordinates: Position(-104.81464673627568, 38.91512778864399)),},
   ];
 
 
@@ -236,6 +223,7 @@ class _MapScreenState extends State<MapScreen> {
   void _setBearingToTracker(double bearing){
     log('setting bearing!');
     mapboxMap?.getCameraState().then((value) {
+      mapboxMap?.setCamera(CameraOptions( zoom: 17 ));
       mapboxMap?.flyTo(CameraOptions(bearing: bearing), MapAnimationOptions(duration: 2000));
     }
     );
@@ -248,7 +236,6 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> getUserLocation() async {
     var permission = await geo.Geolocator.checkPermission();
-    // log('permission for user location: ${permission.name}');
     if(permission == geo.LocationPermission.whileInUse || permission == geo.LocationPermission.always){
       geo.Position position = await geo.Geolocator.getCurrentPosition(
       desiredAccuracy: geo.LocationAccuracy.high
@@ -268,7 +255,6 @@ class _MapScreenState extends State<MapScreen> {
     } else {
       return Future.error('A problem occurred.');
     }
-    
   }
 
 
@@ -307,7 +293,6 @@ class _MapScreenState extends State<MapScreen> {
     final destinationStr = '${destination.coordinates.lat}, ${destination.coordinates.lng}';
     final cacheKey = '$originStr-$destinationStr';
     final fileStream = cacheManager.getFileFromCache(cacheKey);
-
     return fileStream.then((fileInfo) async {
       if (fileInfo != null && await fileInfo.file.exists()) {
         log('using a cached eta!! *GOOD NEWS!*');
@@ -327,7 +312,6 @@ class _MapScreenState extends State<MapScreen> {
         );
 
       final Completer<String> completer = Completer<String>();
-
       directionsService.route(request, (DirectionsResult response, DirectionsStatus? status) async {
         if (status == DirectionsStatus.ok) {
           final route = response.routes!.first;
@@ -391,41 +375,38 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<Uint8List> getImageBytes(String imagePath) async {
     final ByteData bytes = await rootBundle.load(imagePath);
+    
     return bytes.buffer.asUint8List();
   }
   
-  void addShuttleStopsToMap() async {
-    int imageHeight = 0, imageWidth = 0;
+  Future<void> addShuttleStopsToMap() async {
     if (pointAnnotationManager == null) {
       log('pointAnnotationManger is null');
       return;
     }
-    Uint8List bytes;
-    getImageBytes('assets/bus_stop_red.png').then((value) {
-      bytes = value;
-      final decodedImage = decodeImageFromList(bytes).then((value) {
-        imageHeight = value.height;
-        imageWidth = value.width;
-        log('imageHeight=$imageHeight, imageWidth=$imageWidth');
-      },);
-    },);
+
+    Uint8List imageBytes = await getImageBytes('assets/bus_stop_red.png');
+    final decodedImage = await decodeImageFromList(imageBytes);
+    int imageHeight = decodedImage.height;
+    int imageWidth = decodedImage.width;
+    log('imageHeight=$imageHeight, imageWidth=$imageWidth');
 
     for (final stop in shuttleStops) {
       final name = stop.keys.first;
       final point = stop.values.first;
-      final imageBytes = await getImageBytes('assets/bus_stop_red.png');
-      pointAnnotationManager?.create( PointAnnotationOptions(
+      pointAnnotationManager?.create(PointAnnotationOptions(
         textField: name,
         textOffset: [0, -1.5],
         geometry: point.toJson(),
         iconSize: .3,
         textSize: 14,
-        symbolSortKey: 10,
+        symbolSortKey: 1,
         image: imageBytes,
-        iconAnchor: IconAnchor.BOTTOM
+        iconAnchor: IconAnchor.BOTTOM,
       ));
     }
   }
+
 
   Future<Point> getClosestShuttle(Point stopLocation) async {
     double minDistance = double.infinity;
@@ -509,7 +490,7 @@ double bearingBetweenPoints(Point point1, Point point2) {
         context: context,
         builder: (BuildContext context) {
           return AlertDialog(
-          title: Text('ETA To $stopString'),
+          title: Center(child: Text('ETA To $stopString')),
           content: Text('A shuttle should arrive at $stopString in around $value seconds'),
           actions: [
             TextButton(
@@ -518,6 +499,18 @@ double bearingBetweenPoints(Point point1, Point point2) {
               },
               child: const Text('Close'),
             ),],
+            backgroundColor: Colors.blue[100],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10.0),
+            ),
+            titleTextStyle: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.bold,
+              
+            ),
+            contentTextStyle: TextStyle(
+              color: Colors.black87,
+            ),
           );
         },
       );
@@ -534,7 +527,10 @@ double bearingBetweenPoints(Point point1, Point point2) {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Container(
+      color: Colors.grey,
+      child:
+    Column(
       children: [ 
         Expanded(
           flex: 3,
@@ -551,7 +547,6 @@ double bearingBetweenPoints(Point point1, Point point2) {
               onMapCreated: _onMapCreated,
             ),
         ),
-
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Wrap(
@@ -563,11 +558,12 @@ double bearingBetweenPoints(Point point1, Point point2) {
                   onPressed: () {
                     Point gHallStop = getValueByKey('Gateway Hall Stop');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
-                    _centerCameraOnLocation(gHallStop);
+                    
                     getClosestShuttle(gHallStop).then((value) {
                      closestShuttle = value;
                      double bearing = bearingBetweenPoints(gHallStop, closestShuttle);
                      _setBearingToTracker(bearing);
+                     _centerCameraOnLocation(gHallStop);
                     _showDialog('Gateway Hall Stop', closestShuttle);
                   },
                   );
@@ -582,11 +578,12 @@ double bearingBetweenPoints(Point point1, Point point2) {
                     log('button pressed');
                     Point centStop = getValueByKey('Centennial Stop');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
-                    _centerCameraOnLocation(centStop);
+                    
                     getClosestShuttle(centStop).then((value) {
                       closestShuttle = value;
                       double bearing = bearingBetweenPoints(centStop, closestShuttle);
                       _setBearingToTracker(bearing);
+                      _centerCameraOnLocation(centStop);
                       _showDialog('Centennial Stop', closestShuttle);
                     },);
                   },
@@ -601,11 +598,12 @@ double bearingBetweenPoints(Point point1, Point point2) {
                     log('button pressed');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
                     Point uHallStop = getValueByKey('University Hall Stop');
-                    _centerCameraOnLocation(uHallStop);
+                    
                     getClosestShuttle(uHallStop).then((value) {
                       closestShuttle = value;
                       double bearing = bearingBetweenPoints(uHallStop, closestShuttle);
                       _setBearingToTracker(bearing);
+                      _centerCameraOnLocation(uHallStop);
                       _showDialog('University Hall Stop', value);
                     },);
                   },
@@ -677,6 +675,7 @@ double bearingBetweenPoints(Point point1, Point point2) {
           ),
         ),
       ],
+    ),
     );
   }
 }
