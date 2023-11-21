@@ -16,6 +16,7 @@ import 'api_service.dart';
 
 
 class MapService {
+  APIService apiService = APIService();
    geo.GeolocatorPlatform geolocatorPlatform = geo.GeolocatorPlatform.instance;
   List<Map<String, Point>> shuttleStops = [
   {'Gateway Hall Stop': Point(coordinates: Position(-104.80296157732812, 38.89186724000255)),},  
@@ -26,6 +27,8 @@ class MapService {
   ];
 
   Point? userCoords;
+
+
 
    String getNextKey(String currentKey, List<Map<String, Point>> shuttleStops) {
     int currentIndex = -1;
@@ -72,63 +75,61 @@ class MapService {
     );
   }
   
-  onMapCreated(MapboxMap mapboxMap, PointAnnotationManager pointAnnotationManager) {
-    // this.mapboxMap = mapboxMap;
-    mapboxMap!.gestures.updateSettings(GesturesSettings(
-      rotateEnabled: false, 
-      pinchPanEnabled: false, 
-      // pinchToZoomEnabled: false,
-      doubleTapToZoomInEnabled: false,
-      doubleTouchToZoomOutEnabled: false,
-      pitchEnabled: false,
-      quickZoomEnabled: false,
-      // scrollEnabled: false,
-       ));
-    mapboxMap!.location.updateSettings(LocationComponentSettings(enabled: true)); // show current position
-    mapboxMap!.compass.updateSettings(CompassSettings(enabled: false,));
-    mapboxMap!.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
-      // this.mapboxMap!.setBounds(
-      //   CameraBoundsOptions(bounds: CoordinateBounds
-      //   (southwest: Point(coordinates: Position(-104.8249904837867, 38.88429262072977)).toJson(),
-      //   northeast:  Point(coordinates: Position(-104.77047495032352, 38.922085601235615)).toJson(), 
-      //   infiniteBounds: false,)
-      //   , minZoom: 10
-      //   , maxZoom: 20
-      //   ));
+  // onMapCreated(MapboxMap mapboxMap, PointAnnotationManager pointAnnotationManager) {
+  //   // this.mapboxMap = mapboxMap;
+  //   mapboxMap!.gestures.updateSettings(GesturesSettings(
+  //     rotateEnabled: false, 
+  //     pinchPanEnabled: false, 
+  //     // pinchToZoomEnabled: false,
+  //     doubleTapToZoomInEnabled: false,
+  //     doubleTouchToZoomOutEnabled: false,
+  //     pitchEnabled: false,
+  //     quickZoomEnabled: false,
+  //     // scrollEnabled: false,
+  //      ));
+  //   mapboxMap!.location.updateSettings(LocationComponentSettings(enabled: true)); // show current position
+  //   mapboxMap!.compass.updateSettings(CompassSettings(enabled: false,));
+  //   mapboxMap!.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
+  //     // this.mapboxMap!.setBounds(
+  //     //   CameraBoundsOptions(bounds: CoordinateBounds
+  //     //   (southwest: Point(coordinates: Position(-104.8249904837867, 38.88429262072977)).toJson(),
+  //     //   northeast:  Point(coordinates: Position(-104.77047495032352, 38.922085601235615)).toJson(), 
+  //     //   infiniteBounds: false,)
+  //     //   , minZoom: 10
+  //     //   , maxZoom: 20
+  //     //   ));
     
-    mapboxMap.annotations.createPointAnnotationManager().then((value) async {
-      pointAnnotationManager = value;
-      addShuttleStopsToMap(pointAnnotationManager);
-    });
+  //   mapboxMap.annotations.createPointAnnotationManager().then((value) async {
+  //     pointAnnotationManager = value;
+  //     addShuttleStopsToMap(pointAnnotationManager);
+  //   });
+  // }
+
+Future<void> addShuttleStopsToMap(PointAnnotationManager pointAnnotationManager) async {
+  if (pointAnnotationManager == null) {
+    log('pointAnnotationManger is null');
+    return;
   }
 
-  Future<void> addShuttleStopsToMap(PointAnnotationManager pointAnnotationManager) async {
-    if (pointAnnotationManager == null) {
-      log('pointAnnotationManger is null');
-      return;
-    }
+  Uint8List imageBytes = await getImageBytes('assets/bus_stop_red.png');
 
-    Uint8List imageBytes = await getImageBytes('assets/bus_stop_red.png');
-    final decodedImage = await decodeImageFromList(imageBytes);
-    int imageHeight = decodedImage.height;
-    int imageWidth = decodedImage.width;
-    log('imageHeight=$imageHeight, imageWidth=$imageWidth');
+  final pointAnnotations = shuttleStops.map((stop) {
+    final name = stop.keys.first;
+    final point = stop.values.first;
+    return PointAnnotationOptions(
+      textField: name,
+      textOffset: [0, -1.5],
+      geometry: point.toJson(),
+      iconSize: .3,
+      textSize: 14,
+      symbolSortKey: 1,
+      image: imageBytes,
+      iconAnchor: IconAnchor.BOTTOM,
+    );
+  }).toList();
 
-    for (final stop in shuttleStops) {
-      final name = stop.keys.first;
-      final point = stop.values.first;
-      pointAnnotationManager?.create(PointAnnotationOptions(
-        textField: name,
-        textOffset: [0, -1.5],
-        geometry: point.toJson(),
-        iconSize: .3,
-        textSize: 14,
-        symbolSortKey: 1,
-        image: imageBytes,
-        iconAnchor: IconAnchor.BOTTOM,
-      ));
-    }
-  }
+  pointAnnotationManager.createMulti(pointAnnotations);
+}
 
   Future<Uint8List> getImageBytes(String imagePath) async {
     final ByteData bytes = await rootBundle.load(imagePath);
@@ -233,4 +234,63 @@ class MapService {
       }
     }
   }
+
+  void getTrackers({
+    required Map<String, dynamic> jsonResponse,
+    required void Function(Point, Point) updateTrackerCoordinates,
+    required void Function(Point) addToTracker1Stream,
+    required void Function(Point) addToTracker2Stream,
+  }) {
+    final tracker1Value = jsonResponse['tracker1']['value'].toString();
+    final lat = double.parse(tracker1Value.split(',')[0]);
+    final lng = double.parse(tracker1Value.split(',')[1]);
+    final tracker1Point = Point(coordinates: Position(lng, lat));
+
+    final tracker2Value = jsonResponse['tracker2']['value'].toString();
+    final t2lat = double.parse(tracker2Value.split(',')[0]);
+    final t2lng = double.parse(tracker2Value.split(',')[1]);
+    final tracker2Point = Point(coordinates: Position(t2lng, t2lat));
+
+    updateTrackerCoordinates(tracker1Point, tracker2Point);
+    addToTracker1Stream(tracker1Point);
+    addToTracker2Stream(tracker2Point);
+  }
+  
+  
+  bool isResponseEqual(dynamic response1, dynamic response2) {
+    return response1['tracker1']['value'] == response2['tracker1']['value'] &&
+          response1['tracker2']['value'] == response2['tracker2']['value'];
+  }
+
+  Future<Point> getClosestShuttle(Point stopLocation) async {
+    double minDistance = double.infinity;
+    Point closestShuttleLocation = Point(coordinates: Position(0, 0));
+    dynamic jsonResponse = await apiService.fetchData();
+    List<Point> shuttleLocations = [];
+    final tracker1Value = jsonResponse['tracker1']['value'].toString();
+    final t1Lat = double.parse(tracker1Value.split(',')[0]);
+    final t1Lng = double.parse(tracker1Value.split(',')[1]);
+    shuttleLocations.add(Point(coordinates: Position(t1Lng, t1Lat)));
+
+    final tracker2Value = jsonResponse['tracker2']['value'].toString();
+    final t2Lat = double.parse(tracker2Value.split(',')[0]);
+    final t2Lng = double.parse(tracker2Value.split(',')[1]);
+    shuttleLocations.add(Point(coordinates: Position(t2Lng, t2Lat)));
+
+    for (Point shuttleLocation in shuttleLocations) {
+      double distance = geo.GeolocatorPlatform.instance.distanceBetween(
+        stopLocation.coordinates.lat as double,
+        stopLocation.coordinates.lng as double,
+        shuttleLocation.coordinates.lat as double,
+        shuttleLocation.coordinates.lng as double,
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestShuttleLocation = shuttleLocation;
+      }
+    }
+    log('closest shuttle is: ${closestShuttleLocation.coordinates.toJson()}');
+    return closestShuttleLocation;
+  }
+
 }
