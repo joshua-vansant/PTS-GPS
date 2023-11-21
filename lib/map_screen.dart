@@ -12,6 +12,8 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'dart:math' as math;
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'api_service.dart';
+import 'map_service.dart';
 // import 'package:flutter/foundation.dart' show TargetPlatform;
 
 
@@ -22,45 +24,54 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
+  final APIService apiService = APIService();
+  final MapService mapService = MapService();
   final StreamController<Point> _tracker1Stream = StreamController.broadcast();
   final StreamController<Point> _tracker2Stream = StreamController.broadcast();
-  final cacheManager = DefaultCacheManager();
+  
   MapboxMap? mapboxMap;
   PointAnnotationManager? pointAnnotationManager;
   PointAnnotation? tracker1, tracker2, userLocation;
-  Point? t1Coords, t2Coords, userCoords;
+  Point? t1Coords, t2Coords;
   String? t1Eta, t2Eta, focusETA;
   String t1Approaching = '', t2Approaching = '';
   bool t1ButtonEnabled = true, t2ButtonEnabled = true;
   Timer? t1ETATimer;
   geo.GeolocatorPlatform geolocatorPlatform = geo.GeolocatorPlatform.instance;
-  List<Map<String, Point>> shuttleStops = [
-  {'Gateway Hall Stop': Point(coordinates: Position(-104.80296157732812, 38.89186724000255)),},  
-  {'Centennial Stop': Point(coordinates: Position(-104.79906405070052, 38.891729971857785)),},
-  {'University Hall Stop': Point(coordinates: Position(-104.78817384564272, 38.889471922347234)),},
-  {'ROTC Stop': Point(coordinates: Position(-104.81458260704491, 38.90249651010308)),},  
-  {'Lodge Stop': Point(coordinates: Position(-104.81464673627568, 38.91512778864399)),},
-  ];
 
 
-  String getNextKey(String currentKey, List<Map<String, Point>> shuttleStops) {
-    int currentIndex = -1;
-  
-    // Find the index of the current key
-    for (int i = 0; i < shuttleStops.length; i++) {
-      if (shuttleStops[i].containsKey(currentKey)) {
-        currentIndex = i;
-        break;
-      }
+  void _updateTracker1(PointAnnotation value) {
+    setState(() {
+      tracker1 = value;
+    });
+  }
+
+  void _updateTracker2(PointAnnotation value) {
+    setState(() {
+      tracker2 = value;
+    });
+  }
+ 
+  Future<void> _createMarker(Point point, String imagePath, int trackerNumber) async {
+    if (trackerNumber == 1) {
+      mapService.createMarker(
+        pointAnnotationManager,
+        point,
+        imagePath,
+        trackerNumber,
+        _updateTracker1,
+        tracker1,
+      );
+    } else if (trackerNumber == 2) {
+      mapService.createMarker(
+        pointAnnotationManager,
+        point,
+        imagePath,
+        trackerNumber,
+        _updateTracker2,
+        tracker2,
+      );
     }
-    
-    // Retrieve the next key
-    if (currentIndex != -1) {
-      int nextIndex = (currentIndex + 1) % shuttleStops.length;
-      return shuttleStops[nextIndex].keys.first;
-    }
-    
-    return ''; // Next key not found
   }
 
   void updateCurrentStop(Point userLocation, List<Map<String,Point>> shuttleStops, int trakcerNum) async {
@@ -79,8 +90,8 @@ class _MapScreenState extends State<MapScreen> {
       if (distance <= maxDistanceMeters) {
         setState(() {
           switch(trakcerNum){
-            case 1: t1Approaching = 'Next Stop => ${getNextKey(stop.keys.first, shuttleStops)}'; break;
-            case 2: t2Approaching = 'Next Stop => ${getNextKey(stop.keys.first, shuttleStops)}'; break;
+            case 1: t1Approaching = 'Next Stop => ${mapService.getNextKey(stop.keys.first, shuttleStops)}'; break;
+            case 2: t2Approaching = 'Next Stop => ${mapService.getNextKey(stop.keys.first, shuttleStops)}'; break;
             default: t1Approaching = 'Error in updateCurrentStop'; t2Approaching = 'Error in updateCurrentStop';
           }
         });
@@ -89,35 +100,6 @@ class _MapScreenState extends State<MapScreen> {
   }
 
 
-  String getClosestStop(Point point) {
-    double minDistance = double.infinity;
-    String closestStop = '';
-
-    for (Map<String, Point> stop in shuttleStops) {
-      Point stopCoords = stop.values.first;
-      double distance = geolocatorPlatform.distanceBetween(
-        point.coordinates.lat as double,
-        point.coordinates.lng as double,
-        stopCoords.coordinates.lat as double,
-        stopCoords.coordinates.lng as double,
-      );
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestStop = stop.keys.first;
-      }
-    }
-    return closestStop;
-  }
-
-  Point getValueByKey(String key) {
-    Map<String, Point> map = shuttleStops.firstWhere((map) => map.containsKey(key), orElse: () => shuttleStops[4]);
-    if (map != null) {
-      Point value = Point(coordinates: Position(map[key]!.coordinates.lng, map[key]!.coordinates.lat));
-      // log('getValueByKey returning: ${value.coordinates.toJson()}');
-      return value;
-    }
-    return Point(coordinates: Position(0, 0)); // Key not found
-  }
 
   bool isResponseEqual(dynamic response1, dynamic response2) {
     return response1['tracker1']['value'] == response2['tracker1']['value'] &&
@@ -140,11 +122,11 @@ class _MapScreenState extends State<MapScreen> {
               child: const Text('Close'),
             ),
             TextButton(onPressed: () {
-              String stop = getClosestStop(userCoords!);
-              Point stopLoc = getValueByKey(stop);
+              String stop = mapService.getClosestStop(mapService.userCoords!);
+              Point stopLoc = mapService.getValueByKey(stop);
               String lat = stopLoc.coordinates.lat.toString();
               String lng = stopLoc.coordinates.lng.toString();
-              _launchMaps(lat, lng);
+              mapService.launchMaps(context, lat, lng);
             },
             child: const Text('Get Directions'),
             ),
@@ -154,108 +136,31 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  void _launchMaps(String lat, String lng) async {
-    String googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
-    String appleMapsUrl = 'https://maps.apple.com/?q=$lat,$lng';
-    String url = Theme.of(context).platform == TargetPlatform.iOS ? appleMapsUrl : googleMapsUrl;
-    log('${await canLaunchUrl(Uri.parse(url))}');
-    if (await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(Uri.parse(url));
-    } else {
-      throw 'Could not launch $url';
-    }
-  }
+
 
 
   @override
   void initState() {
     super.initState();
-    getUserLocation();
-    
+    mapService.getUserLocation();
     dynamic previousResponse;
-
     Timer.periodic(const Duration(seconds: 1), (timer) {
-      fetchData().then((value) {
+      apiService.fetchData().then((value) {
         // log('fetchdata returned: $value');
         if(previousResponse == null || !isResponseEqual(previousResponse, value)){
           log('!isResponseEqual(previousResponse, value)');
           previousResponse = value;
           getTrackers(value);
-          createMarker(t1Coords!, 'assets/bus_1.png', 1);
-          createMarker(t2Coords!, 'assets/bus_2.png', 2);
+          _createMarker(t1Coords!, 'assets/bus_1.png', 1);
+          _createMarker(t2Coords!, 'assets/bus_2.png', 2);
       }
       },
       );
     });
-    
-    // //fetch initial ETA values
-    // fetchData().then((value) {
-    //   getTrackers(value);
-    //   getETA(t1Coords!, t2Coords!, TravelMode.driving).then((value) => t1Eta = value);
-    //   getETA(t2Coords!, t1Coords!, TravelMode.driving).then((value) => t2Eta = value);
-    // });
-
-    // //update displayed values every second
-    // Timer.periodic(const Duration(seconds: 1), (timer) {
-    //   fetchData().then(((value) { getTrackers(value); } ));
-    //   setState(() {
-    //     t1Eta = math.max(0, int.parse(t1Eta!) - 1).toString();  
-    //     t2Eta = math.max(0, int.parse(t2Eta!) -1).toString();
-    //     updateCurrentStop(t1Coords!, shuttleStops, 1);
-    //     updateCurrentStop(t2Coords!, shuttleStops, 2);
-    //   });
-
-    //   //fetch new ETA values every 30 seconds
-    //   if(timer.tick %30 == 0) {
-    //     fetchData().then((_) => {
-    //       getETA(t1Coords!, t2Coords!, TravelMode.driving).then((value) => t1Eta = value),
-    //       getETA(t2Coords!, t1Coords!, TravelMode.driving).then((value) => t2Eta = value)
-    //     });
-    //   }
-    // });
   }
 
 
-  void _centerCameraOnLocation(Point location) {
-    mapboxMap?.setCamera(CameraOptions(center: location.toJson(), zoom: 17 ));
-  }
 
-  void _setBearingToTracker(double bearing){
-    log('setting bearing!');
-    mapboxMap?.getCameraState().then((value) {
-      mapboxMap?.setCamera(CameraOptions( zoom: 17 ));
-      mapboxMap?.flyTo(CameraOptions(bearing: bearing), MapAnimationOptions(duration: 2000));
-    }
-    );
-  }
-
-  geo.Position getUserCoords(geo.Position position){
-    userCoords = Point(coordinates: Position(position.longitude, position.latitude));
-    return position;
-  }
-
-  Future<void> getUserLocation() async {
-    var permission = await geo.Geolocator.checkPermission();
-    if(permission == geo.LocationPermission.whileInUse || permission == geo.LocationPermission.always){
-      geo.Position position = await geo.Geolocator.getCurrentPosition(
-      desiredAccuracy: geo.LocationAccuracy.high
-      );
-      getUserCoords(position);
-    }
-
-    if (permission == geo.LocationPermission.denied) {
-      permission = await geo.Geolocator.requestPermission();
-      if (permission == geo.LocationPermission.denied) {
-        getUserLocation();
-      }
-    }
-    if (permission == geo.LocationPermission.deniedForever) {
-      return Future.error(
-          'Location permissions are permanently denied, we cannot request permissions.');
-    } else {
-      return Future.error('A problem occurred.');
-    }
-  }
 
 
   void getTrackers(Map<String, dynamic> jsonResponse) {
@@ -277,101 +182,11 @@ class _MapScreenState extends State<MapScreen> {
   }
 
 
-  Future<dynamic> fetchData() async {
-    final response = await http.get(Uri.parse(
-        'https://api.init.st/data/v1/events/latest?accessKey=ist_rg6P7BFsuN8Ekew6hKsE5t9QoMEp2KZN&bucketKey=jmvs_pts_tracker'));
-    if (response.statusCode == 200) {
-      final jsonResponse = json.decode(response.body);
-      return jsonResponse;
-    } else {
-      throw Exception('Failed to load data');
-    }
-  }
 
-  Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [List<Point>? waypoints]) async {
-    final originStr = '${origin.coordinates.lat}, ${origin.coordinates.lng}';
-    final destinationStr = '${destination.coordinates.lat}, ${destination.coordinates.lng}';
-    final cacheKey = '$originStr-$destinationStr';
-    final fileStream = cacheManager.getFileFromCache(cacheKey);
-    return fileStream.then((fileInfo) async {
-      if (fileInfo != null && await fileInfo.file.exists()) {
-        log('using a cached eta!! *GOOD NEWS!*');
-        final file = fileInfo.file;
-        final cachedValue = await file.readAsString();
-        return cachedValue;
-      } else {
-        DirectionsService.init(dotenv.env['DIRECTIONS_API_KEY'] ?? 'Failed to load Directions API Key');
-        final directionsService = DirectionsService();
-        final request = DirectionsRequest(
-          origin: originStr,
-          destination: destinationStr,
-          travelMode: travelMode,
-          waypoints: waypoints?.map((waypoint) => DirectionsWaypoint(
-            location: '${waypoint.coordinates.lat}, ${waypoint.coordinates.lng}',
-          )).toList(),
-        );
 
-      final Completer<String> completer = Completer<String>();
-      directionsService.route(request, (DirectionsResult response, DirectionsStatus? status) async {
-        if (status == DirectionsStatus.ok) {
-          final route = response.routes!.first;
-          final duration = route.legs!.first.duration;
-          final eta = '${duration!.value.toString()}';
-          final file = await cacheManager.putFile(cacheKey, Uint8List.fromList(eta.codeUnits));
-          completer.complete(eta);
-        } else {
-          log('error in getETA');
-          completer.complete('Error: $status');
-        }
-      });
-      return completer.future;
-    } } );
-  }
 
-  Future<void> createMarker(Point point, String imagePath, int trackerNumber) async {
-    final ByteData bytes = await rootBundle.load(imagePath);
-    final Uint8List list = bytes.buffer.asUint8List();
-    PointAnnotation? tracker;
-    if (trackerNumber == 1) {
-      tracker = tracker1;
-    } else if (trackerNumber == 2) {
-      tracker = tracker2;
-    }
 
-    if (tracker == null) {
-      pointAnnotationManager?.create(PointAnnotationOptions(
-        textField: 'Shuttle $trackerNumber',
-        textOffset: [0, 1.25],
-        geometry: point.toJson(),
-        iconSize: 1,
-        symbolSortKey: 10,
-        image: list,
-      )).then((value) {
-        if (trackerNumber == 1) {
-          setState(() {
-            tracker1 = value;
-          });
-        } else if (trackerNumber == 2) {
-          setState(() {
-            tracker2 = value;
-          });
-          }
-      });
-    } else {
-        Point.fromJson((tracker.geometry)!.cast());
-        var newPoint = Point(coordinates: Position(point.coordinates.lng, point.coordinates.lat)).toJson();
-        
-        if(trackerNumber == 1){
-          setState(() {
-            tracker1!.geometry = newPoint;
-            pointAnnotationManager?.update(tracker1!);
-          });
-        } else if (trackerNumber == 2){
-          tracker2!.geometry = newPoint;
-          pointAnnotationManager?.update(tracker2!);
-        }
-    }
-  }
+
 
   Future<Uint8List> getImageBytes(String imagePath) async {
     final ByteData bytes = await rootBundle.load(imagePath);
@@ -379,39 +194,13 @@ class _MapScreenState extends State<MapScreen> {
     return bytes.buffer.asUint8List();
   }
   
-  Future<void> addShuttleStopsToMap() async {
-    if (pointAnnotationManager == null) {
-      log('pointAnnotationManger is null');
-      return;
-    }
 
-    Uint8List imageBytes = await getImageBytes('assets/bus_stop_red.png');
-    final decodedImage = await decodeImageFromList(imageBytes);
-    int imageHeight = decodedImage.height;
-    int imageWidth = decodedImage.width;
-    log('imageHeight=$imageHeight, imageWidth=$imageWidth');
-
-    for (final stop in shuttleStops) {
-      final name = stop.keys.first;
-      final point = stop.values.first;
-      pointAnnotationManager?.create(PointAnnotationOptions(
-        textField: name,
-        textOffset: [0, -1.5],
-        geometry: point.toJson(),
-        iconSize: .3,
-        textSize: 14,
-        symbolSortKey: 1,
-        image: imageBytes,
-        iconAnchor: IconAnchor.BOTTOM,
-      ));
-    }
-  }
 
 
   Future<Point> getClosestShuttle(Point stopLocation) async {
     double minDistance = double.infinity;
     Point closestShuttleLocation = Point(coordinates: Position(0, 0));
-    dynamic jsonResponse = await fetchData();
+    dynamic jsonResponse = await apiService.fetchData();
     List<Point> shuttleLocations = [];
     final tracker1Value = jsonResponse['tracker1']['value'].toString();
     final t1Lat = double.parse(tracker1Value.split(',')[0]);
@@ -478,14 +267,14 @@ double bearingBetweenPoints(Point point1, Point point2) {
     
     mapboxMap.annotations.createPointAnnotationManager().then((value) async {
       pointAnnotationManager = value;
-      addShuttleStopsToMap();
+      mapService.addShuttleStopsToMap(value);
     });
   }
 
   void _showDialog(String stopString, Point closestShuttle) {
-    Point stopPoint = getValueByKey(stopString);
+    Point stopPoint = mapService.getValueByKey(stopString);
     String eta; 
-    getETA(closestShuttle, stopPoint, TravelMode.driving).then((value) {
+    apiService.getETA(closestShuttle, stopPoint, TravelMode.driving).then((value) {
       showDialog(
         context: context,
         builder: (BuildContext context) {
@@ -556,14 +345,14 @@ double bearingBetweenPoints(Point point1, Point point2) {
                 children: [
                 ElevatedButton(
                   onPressed: () {
-                    Point gHallStop = getValueByKey('Gateway Hall Stop');
+                    Point gHallStop = mapService.getValueByKey('Gateway Hall Stop');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
                     
                     getClosestShuttle(gHallStop).then((value) {
                      closestShuttle = value;
                      double bearing = bearingBetweenPoints(gHallStop, closestShuttle);
-                     _setBearingToTracker(bearing);
-                     _centerCameraOnLocation(gHallStop);
+                     mapService.setBearingToTracker(mapboxMap, bearing);
+                     mapService.centerCameraOnLocation(mapboxMap, gHallStop);
                     _showDialog('Gateway Hall Stop', closestShuttle);
                   },
                   );
@@ -576,14 +365,14 @@ double bearingBetweenPoints(Point point1, Point point2) {
                 ElevatedButton(
                   onPressed: () {
                     log('button pressed');
-                    Point centStop = getValueByKey('Centennial Stop');
+                    Point centStop = mapService.getValueByKey('Centennial Stop');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
                     
                     getClosestShuttle(centStop).then((value) {
                       closestShuttle = value;
                       double bearing = bearingBetweenPoints(centStop, closestShuttle);
-                      _setBearingToTracker(bearing);
-                      _centerCameraOnLocation(centStop);
+                      mapService.setBearingToTracker(mapboxMap, bearing);
+                      mapService.centerCameraOnLocation(mapboxMap, centStop);
                       _showDialog('Centennial Stop', closestShuttle);
                     },);
                   },
@@ -597,13 +386,13 @@ double bearingBetweenPoints(Point point1, Point point2) {
                   onPressed: () {
                     log('button pressed');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
-                    Point uHallStop = getValueByKey('University Hall Stop');
+                    Point uHallStop = mapService.getValueByKey('University Hall Stop');
                     
                     getClosestShuttle(uHallStop).then((value) {
                       closestShuttle = value;
                       double bearing = bearingBetweenPoints(uHallStop, closestShuttle);
-                      _setBearingToTracker(bearing);
-                      _centerCameraOnLocation(uHallStop);
+                      mapService.setBearingToTracker(mapboxMap, bearing);
+                      mapService.centerCameraOnLocation(mapboxMap, uHallStop);
                       _showDialog('University Hall Stop', value);
                     },);
                   },
@@ -616,12 +405,12 @@ double bearingBetweenPoints(Point point1, Point point2) {
                   onPressed: () {
                     log('button pressed');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
-                    Point rotcStop = getValueByKey('ROTC Stop');
-                    _centerCameraOnLocation(rotcStop);
+                    Point rotcStop = mapService.getValueByKey('ROTC Stop');
+                    mapService.centerCameraOnLocation(mapboxMap, rotcStop);
                     getClosestShuttle(rotcStop).then((value) {
                       closestShuttle = value;
                       double bearing = bearingBetweenPoints(rotcStop, closestShuttle);
-                      _setBearingToTracker(bearing);
+                      mapService.setBearingToTracker(mapboxMap, bearing);
                       _showDialog('ROTC Stop', value);
                   },
                   );
@@ -635,12 +424,12 @@ double bearingBetweenPoints(Point point1, Point point2) {
                   onPressed: () {
                     log('button pressed');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
-                    Point lodgeStop = getValueByKey('Lodge Stop');
-                    _centerCameraOnLocation(lodgeStop);
+                    Point lodgeStop = mapService.getValueByKey('Lodge Stop');
+                    mapService.centerCameraOnLocation(mapboxMap, lodgeStop);
                     getClosestShuttle(lodgeStop).then((value) {
                       closestShuttle = value;
                       double bearing = bearingBetweenPoints(lodgeStop, closestShuttle);
-                      _setBearingToTracker(bearing);
+                      mapService.setBearingToTracker(mapboxMap, bearing);
                       _showDialog('Lodge Stop', value);
                   },
                   );
@@ -658,11 +447,11 @@ double bearingBetweenPoints(Point point1, Point point2) {
           width: double.infinity,
           child: ElevatedButton(
             onPressed: () {
-              getUserLocation();
-              String closestStop = getClosestStop(userCoords!);
-              Point closestStopPoint = getValueByKey(closestStop);
+              mapService.getUserLocation();
+              String closestStop = mapService.getClosestStop(mapService.userCoords!);
+              Point closestStopPoint = mapService.getValueByKey(closestStop);
               String eta;
-              getETA(userCoords!, closestStopPoint, TravelMode.driving).then((value) {
+              apiService.getETA(mapService.userCoords!, closestStopPoint, TravelMode.driving).then((value) {
                 eta = value;
                 _showPopup(eta, closestStop);
               },
