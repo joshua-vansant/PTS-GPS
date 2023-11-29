@@ -5,14 +5,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'dart:developer';
-import 'package:geolocator/geolocator.dart' as geo;
 import 'package:google_directions_api/google_directions_api.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'dart:math' as math;
-import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'api_service.dart';
+
 
 class APIService {
     Future<dynamic> fetchData() async {
