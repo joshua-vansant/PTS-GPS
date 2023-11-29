@@ -169,11 +169,13 @@ Future<void> addShuttleStopsToMap(PointAnnotationManager pointAnnotationManager)
 
   geo.Position getUserCoords(geo.Position position){
     userCoords = Point(coordinates: Position(position.longitude, position.latitude));
+    log('userCoords in func: ${userCoords!.coordinates.lat}, ${userCoords!.coordinates.lng}');
     return position;
   }
 
   Future<void> getUserLocation() async {
     var permission = await geo.Geolocator.checkPermission();
+    log('permission: $permission');
     if(permission == geo.LocationPermission.whileInUse || permission == geo.LocationPermission.always){
       geo.Position position = await geo.Geolocator.getCurrentPosition(
       desiredAccuracy: geo.LocationAccuracy.high
@@ -242,6 +244,7 @@ Future<void> addShuttleStopsToMap(PointAnnotationManager pointAnnotationManager)
     required void Function(Point) addToTracker2Stream,
   }) {
     final tracker1Value = jsonResponse['tracker1']['value'].toString();
+    log(tracker1Value);
     final lat = double.parse(tracker1Value.split(',')[0]);
     final lng = double.parse(tracker1Value.split(',')[1]);
     final tracker1Point = Point(coordinates: Position(lng, lat));

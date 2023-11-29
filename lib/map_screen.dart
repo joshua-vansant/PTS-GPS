@@ -208,6 +208,7 @@ class _MapScreenState extends State<MapScreen> {
               String eta;
               apiService.getETA(mapService.userCoords!, closestStopPoint, TravelMode.driving).then((value) {
                 eta = value;
+                log('usercoords: ${mapService.userCoords!.coordinates.lat}, ${mapService.userCoords!.coordinates.lng}, closestStop: $closestStop, eta: $eta');
                 showPopup(eta, closestStop);
               },
               );
@@ -299,9 +300,14 @@ class _MapScreenState extends State<MapScreen> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
+        log(eta);
+        int seconds = int.parse(eta);
+        int minutes = seconds ~/ 60;
+        int remainingSeconds = seconds % 60;
+        String incoming = '$minutes minutes and $remainingSeconds seconds';
         return AlertDialog(
           title: Text(destination),
-          content: Text('$eta seconds'),
+          content: Text('$incoming'),
           actions: [
             TextButton(
               onPressed: () {
@@ -362,14 +368,15 @@ class _MapScreenState extends State<MapScreen> {
     this.mapboxMap!.location.updateSettings(LocationComponentSettings(enabled: true)); // show current position
     this.mapboxMap!.compass.updateSettings(CompassSettings(enabled: false,));
     this.mapboxMap!.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
-      // this.mapboxMap!.setBounds(
-      //   CameraBoundsOptions(bounds: CoordinateBounds
-      //   (southwest: Point(coordinates: Position(-104.8249904837867, 38.88429262072977)).toJson(),
-      //   northeast:  Point(coordinates: Position(-104.77047495032352, 38.922085601235615)).toJson(), 
-      //   infiniteBounds: false,)
-      //   , minZoom: 10
-      //   , maxZoom: 20
-      //   ));
+    // this.mapboxMap!.setBounds(
+      // CameraBoundsOptions(bounds: CoordinateBounds
+      // (southwest: Point(coordinates: Position(-104.8249904837867, 38.88429262072977)).toJson(),
+      // northeast:  Point(coordinates: Position(-104.77047495032352, 38.922085601235615)).toJson(), 
+      // infiniteBounds: false,)
+      // , minZoom: 10
+      // , maxZoom: 20
+      // )
+        // );
 
     mapboxMap.annotations.createPointAnnotationManager().then((value) async {
       pointAnnotationManager = value;
@@ -379,14 +386,17 @@ class _MapScreenState extends State<MapScreen> {
 
   void _showDialog(String stopString, Point closestShuttle) {
     Point stopPoint = mapService.getValueByKey(stopString);
-    String eta; 
     apiService.getETA(closestShuttle, stopPoint, TravelMode.driving).then((value) {
+      int seconds = int.parse(value);
+      int minutes = seconds ~/ 60;
+      int remainingSeconds = seconds % 60;
+      String incoming = '$minutes minutes and $remainingSeconds seconds';
       showDialog(
         context: context,
         builder: (BuildContext context) {
           return AlertDialog(
           title: Center(child: Text('ETA To $stopString')),
-          content: Text('A shuttle should arrive at $stopString in around $value seconds'),
+          content: RichText(text: TextSpan(text: 'A shuttle should arrive at\n', children: <TextSpan>[TextSpan(text: '$stopString\nin around\n'), TextSpan(text: '$incoming')],), textAlign: TextAlign.center),
           actions: [
             TextButton(
               onPressed: () {
