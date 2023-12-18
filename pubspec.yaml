@@ -43,6 +43,7 @@ dependencies:
   flutter_dotenv: ^5.1.0
   flutter_cache_manager: ^3.3.1
   url_launcher: ^6.1.14
+  flutter_launcher_icons: ^0.13.1
 
 dev_dependencies:
   flutter_test:

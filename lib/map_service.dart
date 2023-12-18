@@ -14,15 +14,31 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'api_service.dart';
 
-
+// START: Eagle Rock
+// Lot 540
+// Alpine
+// Lodge
+// Cent
+// UHall
+// Lot 103
+// Cent 
+// Lodge
+// Alpine
+// 540
+// Eagle Rock
+// (580 is not in service currently)
 class MapService {
    geo.GeolocatorPlatform geolocatorPlatform = geo.GeolocatorPlatform.instance;
   List<Map<String, Point>> shuttleStops = [
-  {'Gateway Hall Stop': Point(coordinates: Position(-104.80296157732812, 38.89186724000255)),},  
-  {'Centennial Stop': Point(coordinates: Position(-104.79906405070052, 38.891729971857785)),},
-  {'University Hall Stop': Point(coordinates: Position(-104.78817384564272, 38.889471922347234)),},
-  {'ROTC Stop': Point(coordinates: Position(-104.81458260704491, 38.90249651010308)),},  
-  {'Lodge Stop': Point(coordinates: Position(-104.81464673627568, 38.91512778864399)),},
+  {'University Hall Stop': Point(coordinates: Position(-104.78774864932078, 38.889464319662274)),},  
+  {'Lot 103 Stop': Point(coordinates: Position(-104.79204688588112, 38.888782337417965)),},
+  {'Centennial Hall Stop': Point(coordinates: Position(-104.79925147404836, 38.89193096726863)),},
+  {'Lodge Stop': Point(coordinates: Position(-104.80542674163705, 38.89436248896465)),},  
+  {'Alpine Stop': Point(coordinates: Position(-104.80652117718797, 38.897690997528024)),},
+  {'Lot 540 Stop': Point(coordinates: Position(-104.81070532677619, 38.89998202956692)),},
+  {'Eagle Rock Stop': Point(coordinates: Position(-104.8146366565121, 38.90254986221832)),},
+  // {'Old Lot 576 Stop': Point(coordinates: Position(-104.81423941171502, 38.90519322228293)),},
+  {'Lot 580 Stop': Point(coordinates: Position(-104.81500644128867, 38.90714636447364)),},
   ];
 
   Point? userCoords;
@@ -75,13 +91,13 @@ class MapService {
   onMapCreated(MapboxMap mapboxMap, PointAnnotationManager pointAnnotationManager) {
     // this.mapboxMap = mapboxMap;
     mapboxMap!.gestures.updateSettings(GesturesSettings(
-      rotateEnabled: false, 
-      pinchPanEnabled: false, 
-      // pinchToZoomEnabled: false,
-      doubleTapToZoomInEnabled: false,
-      doubleTouchToZoomOutEnabled: false,
-      pitchEnabled: false,
-      quickZoomEnabled: false,
+      // rotateEnabled: false, 
+      // pinchPanEnabled: false, 
+      // // pinchToZoomEnabled: false,
+      // doubleTapToZoomInEnabled: false,
+      // doubleTouchToZoomOutEnabled: false,
+      // pitchEnabled: false,
+      // quickZoomEnabled: false,
       // scrollEnabled: false,
        ));
     mapboxMap!.location.updateSettings(LocationComponentSettings(enabled: true)); // show current position
@@ -139,7 +155,6 @@ class MapService {
   String getClosestStop(Point point) {
     double minDistance = double.infinity;
     String closestStop = '';
-
     for (Map<String, Point> stop in shuttleStops) {
       Point stopCoords = stop.values.first;
       double distance = geolocatorPlatform.distanceBetween(
@@ -204,7 +219,7 @@ class MapService {
   ) async {
     final ByteData bytes = await rootBundle.load(imagePath);
     final Uint8List list = bytes.buffer.asUint8List();
-
+    log('creating marker');
     if (tracker == null) {
       pointAnnotationManager?.create(PointAnnotationOptions(
         textField: 'Shuttle $trackerNumber',

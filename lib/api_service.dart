@@ -15,16 +15,49 @@ import 'package:url_launcher/url_launcher.dart';
 import 'api_service.dart';
 
 class APIService {
-    Future<dynamic> fetchData() async {
-    final response = await http.get(Uri.parse(
-        'https://api.init.st/data/v1/events/latest?accessKey=ist_rg6P7BFsuN8Ekew6hKsE5t9QoMEp2KZN&bucketKey=jmvs_pts_tracker'));
-    if (response.statusCode == 200) {
-      final jsonResponse = json.decode(response.body);
-      return jsonResponse;
-    } else {
+  Future<dynamic> fetchData() async {
+  final response = await http.get(Uri.parse(
+      'https://api.init.st/data/v1/events/latest?accessKey=ist_rg6P7BFsuN8Ekew6hKsE5t9QoMEp2KZN&bucketKey=jmvs_pts_tracker'));
+  if (response.statusCode == 200) {
+    final jsonResponse = json.decode(response.body);
+    return jsonResponse;
+  } else {
       throw Exception('Failed to load data');
     }
   }
+
+  // String key = 'AjXbJEvB7bYuf2V76Emnuv6tpoKi7AYN';
+  Future<dynamic> fetchMapquestData() async {
+    String key = 'AjXbJEvB7bYuf2V76Emnuv6tpoKi7AYN';
+    var url = 'https://www.mapquestapi.com/directions/v2/routematrix?key=$key';
+    var locations = [
+      {"latLng": {"lat": 38.92657853823171, "lng": -104.71958493986442}},
+      {"latLng": {"lat": 38.933422351983175, "lng": -104.67722749506102}}
+    ];
+    var requestBody = {"locations": locations};
+    var encodedBody = json.encode(requestBody);
+    try {
+      var response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: encodedBody,
+      );
+      if (response.statusCode == 200) {
+        var data = json.decode(response.body);
+        // log('data from mapquest: $data');
+        return data;
+      } else {
+        var errorMessage = 'Error: ${response.reasonPhrase}';
+        if (response.body != null) {
+          errorMessage += ' - ${response.body}';
+        }
+        log(errorMessage);
+      }
+    } catch (error) {
+      log('Error: $error');
+    }
+  }
+
 
     Future<String> getETA(Point origin, Point destination, TravelMode travelMode, [List<Point>? waypoints]) async {
       final cacheManager = DefaultCacheManager();

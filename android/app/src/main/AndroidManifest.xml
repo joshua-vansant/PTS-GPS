@@ -18,9 +18,9 @@
 </queries>
 <!-- <uses-permission android:name="android.permission.ACCESS_NETWORK_LOCATION" /> -->
     <application
-        android:label="pts_gps"
+        android:label="UCCS Shuttle Info"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/launcher_icon">
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -143,33 +143,40 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     mapService.getUserLocation();
+
+
+
     dynamic previousResponse;
     Timer.periodic(const Duration(seconds: 1), (timer) {
       apiService.fetchData().then((value) {
-        // log('fetchdata returned: $value');
+        log('fetchdata returned: $value');
         if(previousResponse == null || !isResponseEqual(previousResponse, value)){
-          log('!isResponseEqual(previousResponse, value)');
+          // log({isResponseEqual(previousResponse, value)}.toString());
           previousResponse = value;
           getTrackers(value);
           _createMarker(t1Coords!, 'assets/bus_1.png', 1);
           _createMarker(t2Coords!, 'assets/bus_2.png', 2);
       }
+    // apiService.fetchMapquestData().then((value){
+    //   log('fetched value from mapquest: ${value.toString()}');
+    // });
       },
       );
+      
     });
   }
 
 
-
-
-
   void getTrackers(Map<String, dynamic> jsonResponse) {
+    log(jsonResponse.toString());
     final tracker1Value = jsonResponse['tracker1']['value'].toString();
+    log(tracker1Value);
     final lat = double.parse(tracker1Value.split(',')[0]);
     final lng = double.parse(tracker1Value.split(',')[1]);
     final tracker1Point = Point(coordinates: Position(lng, lat));
 
     final tracker2Value = jsonResponse['tracker2']['value'].toString();
+    log(tracker2Value);
     final t2lat = double.parse(tracker2Value.split(',')[0]);
     final t2lng = double.parse(tracker2Value.split(',')[1]);
     final tracker2Point = Point(coordinates: Position(t2lng, t2lat));
@@ -180,12 +187,6 @@ class _MapScreenState extends State<MapScreen> {
       _tracker2Stream.add(tracker2Point);
     });
   }
-
-
-
-
-
-
 
 
   Future<Uint8List> getImageBytes(String imagePath) async {
@@ -246,24 +247,24 @@ double bearingBetweenPoints(Point point1, Point point2) {
     this.mapboxMap!.gestures.updateSettings(GesturesSettings(
       rotateEnabled: false, 
       pinchPanEnabled: false, 
-      // pinchToZoomEnabled: false,
+      pinchToZoomEnabled: false,
       doubleTapToZoomInEnabled: false,
       doubleTouchToZoomOutEnabled: false,
       pitchEnabled: false,
       quickZoomEnabled: false,
-      // scrollEnabled: false,
+      scrollEnabled: false,
        ));
     this.mapboxMap!.location.updateSettings(LocationComponentSettings(enabled: true)); // show current position
     this.mapboxMap!.compass.updateSettings(CompassSettings(enabled: false,));
     this.mapboxMap!.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
-      // this.mapboxMap!.setBounds(
-      //   CameraBoundsOptions(bounds: CoordinateBounds
-      //   (southwest: Point(coordinates: Position(-104.8249904837867, 38.88429262072977)).toJson(),
-      //   northeast:  Point(coordinates: Position(-104.77047495032352, 38.922085601235615)).toJson(), 
-      //   infiniteBounds: false,)
-      //   , minZoom: 10
-      //   , maxZoom: 20
-      //   ));
+      this.mapboxMap!.setBounds(
+        CameraBoundsOptions(bounds: CoordinateBounds
+        (southwest: Point(coordinates: Position(-104.8249904837867, 38.88429262072977)).toJson(),
+        northeast:  Point(coordinates: Position(-104.77047495032352, 38.922085601235615)).toJson(), 
+        infiniteBounds: false,)
+        , minZoom: 10
+        , maxZoom: 20
+        ));
     
     mapboxMap.annotations.createPointAnnotationManager().then((value) async {
       pointAnnotationManager = value;
@@ -334,6 +335,7 @@ double bearingBetweenPoints(Point point1, Point point2) {
                 pitch: 70,
                 bearing: 300),
               onMapCreated: _onMapCreated,
+              styleUri: 'mapbox://styles/jvansantpts/clpijmftl007i01ol5dlm1dui',
             ),
         ),
             Padding(
@@ -345,7 +347,7 @@ double bearingBetweenPoints(Point point1, Point point2) {
                 children: [
                 ElevatedButton(
                   onPressed: () {
-                    Point gHallStop = mapService.getValueByKey('Gateway Hall Stop');
+                    Point gHallStop = mapService.getValueByKey('Lot 100 Stop');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
                     
                     getClosestShuttle(gHallStop).then((value) {
@@ -353,19 +355,39 @@ double bearingBetweenPoints(Point point1, Point point2) {
                      double bearing = bearingBetweenPoints(gHallStop, closestShuttle);
                      mapService.setBearingToTracker(mapboxMap, bearing);
                      mapService.centerCameraOnLocation(mapboxMap, gHallStop);
-                    _showDialog('Gateway Hall Stop', closestShuttle);
+                    _showDialog('Lot 100 Stop', closestShuttle);
+                  },
+                  );
+                  },
+                  style: const ButtonStyle(
+                    backgroundColor: MaterialStatePropertyAll<Color>(Colors.amber),
+                    foregroundColor: MaterialStatePropertyAll<Color>(Colors.black),
+                    ),
+                    child: const Text('Lot 100 Stop', textAlign: TextAlign.center),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Point gHallStop = mapService.getValueByKey('Lot 103 Stop');
+                    Point closestShuttle = Point(coordinates: Position(0, 0));
+                    
+                    getClosestShuttle(gHallStop).then((value) {
+                     closestShuttle = value;
+                     double bearing = bearingBetweenPoints(gHallStop, closestShuttle);
+                     mapService.setBearingToTracker(mapboxMap, bearing);
+                     mapService.centerCameraOnLocation(mapboxMap, gHallStop);
+                    _showDialog('Lot 103 Stop', closestShuttle);
                   },
                   );
                   },
                   style: const ButtonStyle(
                     backgroundColor: MaterialStatePropertyAll<Color>(Colors.amber),
                     foregroundColor: MaterialStatePropertyAll<Color>(Colors.black)),
-                    child: const Text('Gateway Hall Stop', textAlign: TextAlign.center),
+                    child: const Text('Lot 103 Stop', textAlign: TextAlign.center),
                 ),
                 ElevatedButton(
                   onPressed: () {
                     log('button pressed');
-                    Point centStop = mapService.getValueByKey('Centennial Stop');
+                    Point centStop = mapService.getValueByKey('Centennial Hall Stop');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
                     
                     getClosestShuttle(centStop).then((value) {
@@ -373,50 +395,88 @@ double bearingBetweenPoints(Point point1, Point point2) {
                       double bearing = bearingBetweenPoints(centStop, closestShuttle);
                       mapService.setBearingToTracker(mapboxMap, bearing);
                       mapService.centerCameraOnLocation(mapboxMap, centStop);
-                      _showDialog('Centennial Stop', closestShuttle);
+                      _showDialog('Centennial Hall Stop', closestShuttle);
                     },);
                   },
                   style: const ButtonStyle(
                     backgroundColor: MaterialStatePropertyAll<Color>(Colors.green),
                     foregroundColor: MaterialStatePropertyAll<Color>(Colors.black),
                   ),
-                  child: const Text(textAlign: TextAlign.center, 'Centennial Stop'),
+                  child: const Text(textAlign: TextAlign.center, 'Centennial Hall Stop'),
                 ),
                 ElevatedButton(
                   onPressed: () {
                     log('button pressed');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
-                    Point uHallStop = mapService.getValueByKey('University Hall Stop');
+                    Point uHallStop = mapService.getValueByKey('Regent Circle Stop');
                     
                     getClosestShuttle(uHallStop).then((value) {
                       closestShuttle = value;
                       double bearing = bearingBetweenPoints(uHallStop, closestShuttle);
                       mapService.setBearingToTracker(mapboxMap, bearing);
                       mapService.centerCameraOnLocation(mapboxMap, uHallStop);
-                      _showDialog('University Hall Stop', value);
+                      _showDialog('Regent Circle Stop', value);
                     },);
                   },
                   style: const ButtonStyle(
                     backgroundColor: MaterialStatePropertyAll<Color>(Colors.orange),
                     foregroundColor: MaterialStatePropertyAll<Color>(Colors.black),),
-                  child: const Text(textAlign: TextAlign.center, 'University Hall Stop'),
+                  child: const Text(textAlign: TextAlign.center, 'Regent Circle Stop'),
                 ),
                 ElevatedButton(
                   onPressed: () {
                     log('button pressed');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
-                    Point rotcStop = mapService.getValueByKey('ROTC Stop');
+                    Point rotcStop = mapService.getValueByKey('Clyde Way Stop');
                     mapService.centerCameraOnLocation(mapboxMap, rotcStop);
                     getClosestShuttle(rotcStop).then((value) {
                       closestShuttle = value;
                       double bearing = bearingBetweenPoints(rotcStop, closestShuttle);
+                      mapService.setBearingToTracker(mapboxMap, bearing);
+                      _showDialog('Clyde Way Stop', value);
+                  },
+                  );
+                  },
+                  style: const ButtonStyle(
+                    backgroundColor: MaterialStatePropertyAll<Color>(Colors.red),
+                    foregroundColor: MaterialStatePropertyAll<Color>(Colors.black),),
+                  child: const Text(textAlign: TextAlign.center, 'Clyde Way Stop'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    log('button pressed');
+                    Point closestShuttle = Point(coordinates: Position(0, 0));
+                    Point lodgeStop = mapService.getValueByKey('Lot 540 Stop');
+                    mapService.centerCameraOnLocation(mapboxMap, lodgeStop);
+                    getClosestShuttle(lodgeStop).then((value) {
+                      closestShuttle = value;
+                      double bearing = bearingBetweenPoints(lodgeStop, closestShuttle);
+                      mapService.setBearingToTracker(mapboxMap, bearing);
+                      _showDialog('Lot 540 Stop', value);
+                  },
+                  );
+                  },
+                  style: const ButtonStyle(
+                    backgroundColor: MaterialStatePropertyAll<Color>(Colors.blue),
+                    foregroundColor: MaterialStatePropertyAll<Color>(Colors.black),),
+                  child: const Text(textAlign: TextAlign.center, 'Lot 540 Stop'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    log('button pressed');
+                    Point closestShuttle = Point(coordinates: Position(0, 0));
+                    Point lodgeStop = mapService.getValueByKey('ROTC Stop');
+                    mapService.centerCameraOnLocation(mapboxMap, lodgeStop);
+                    getClosestShuttle(lodgeStop).then((value) {
+                      closestShuttle = value;
+                      double bearing = bearingBetweenPoints(lodgeStop, closestShuttle);
                       mapService.setBearingToTracker(mapboxMap, bearing);
                       _showDialog('ROTC Stop', value);
                   },
                   );
                   },
                   style: const ButtonStyle(
-                    backgroundColor: MaterialStatePropertyAll<Color>(Colors.red),
+                    backgroundColor: MaterialStatePropertyAll<Color>(Colors.blue),
                     foregroundColor: MaterialStatePropertyAll<Color>(Colors.black),),
                   child: const Text(textAlign: TextAlign.center, 'ROTC Stop'),
                 ),
@@ -424,20 +484,39 @@ double bearingBetweenPoints(Point point1, Point point2) {
                   onPressed: () {
                     log('button pressed');
                     Point closestShuttle = Point(coordinates: Position(0, 0));
-                    Point lodgeStop = mapService.getValueByKey('Lodge Stop');
+                    Point lodgeStop = mapService.getValueByKey('Eagle Rock Stop');
                     mapService.centerCameraOnLocation(mapboxMap, lodgeStop);
                     getClosestShuttle(lodgeStop).then((value) {
                       closestShuttle = value;
                       double bearing = bearingBetweenPoints(lodgeStop, closestShuttle);
                       mapService.setBearingToTracker(mapboxMap, bearing);
-                      _showDialog('Lodge Stop', value);
+                      _showDialog('Eagle Rock Stop', value);
                   },
                   );
                   },
                   style: const ButtonStyle(
                     backgroundColor: MaterialStatePropertyAll<Color>(Colors.blue),
                     foregroundColor: MaterialStatePropertyAll<Color>(Colors.black),),
-                  child: const Text(textAlign: TextAlign.center, 'Lodge Stop'),
+                  child: const Text(textAlign: TextAlign.center, 'Eagle Rock Stop'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    log('button pressed');
+                    Point closestShuttle = Point(coordinates: Position(0, 0));
+                    Point lodgeStop = mapService.getValueByKey('Lot 580 Stop');
+                    mapService.centerCameraOnLocation(mapboxMap, lodgeStop);
+                    getClosestShuttle(lodgeStop).then((value) {
+                      closestShuttle = value;
+                      double bearing = bearingBetweenPoints(lodgeStop, closestShuttle);
+                      mapService.setBearingToTracker(mapboxMap, bearing);
+                      _showDialog('Lot 580 Stop', value);
+                  },
+                  );
+                  },
+                  style: const ButtonStyle(
+                    backgroundColor: MaterialStatePropertyAll<Color>(Colors.blue),
+                    foregroundColor: MaterialStatePropertyAll<Color>(Colors.black),),
+                  child: const Text(textAlign: TextAlign.center, 'Lot 580 Stop'),
                 ),
               ],
             ),
